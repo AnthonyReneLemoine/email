@@ -65,6 +65,13 @@
     margin-right: 8px;
   }
 
+  #topbar .version {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text3);
+    letter-spacing: 0.05em;
+  }
+
   #search-wrap {
     flex: 1;
     max-width: 480px;
@@ -699,6 +706,7 @@
     <p style="font-size:11px;color:var(--text3);font-family:var(--mono);text-align:center;">
       OAuth 2.0 · Aucune donnée stockée côté serveur
     </p>
+    <p style="font-size:10px;color:var(--text3);font-family:var(--mono);">v2</p>
   </div>
 </div>
 
@@ -708,6 +716,7 @@
   <!-- TOPBAR -->
   <div id="topbar">
     <span class="logo">▸ MAIL</span>
+    <span class="version">v2</span>
     <div id="search-wrap">
       <input id="search" type="text" placeholder="Rechercher dans les emails…" onkeydown="if(event.key==='Enter')searchEmails()">
     </div>
