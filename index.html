@@ -1156,7 +1156,7 @@ function buildEmailItem(msg) {
       <span>${escHtml(fromName.substring(0,30))}</span>
       <span class="email-date">${dateStr}</span>
     </div>
-    <div class="email-subject">${escHtml(subject)}</div>
+    <div class="email-subject">${escHtml(subject)}${hasAttachments(msg) ? ' <span style="font-size:10px;opacity:.7;vertical-align:middle;">📎</span>' : ''}</div>
     <div class="email-snippet">${escHtml(snippet.substring(0,80))}</div>
   `;
   el.onclick = () => openMessage(msg.id, el);
@@ -1252,6 +1252,16 @@ function extractBody(payload) {
 
   walk(payload);
   return { html, text };
+}
+
+function hasAttachments(msg) {
+  function check(part) {
+    if (!part) return false;
+    if (part.filename && part.filename.length > 0) return true;
+    if (part.parts) return part.parts.some(check);
+    return false;
+  }
+  return check(msg.payload);
 }
 
 function extractAttachments(payload) {
