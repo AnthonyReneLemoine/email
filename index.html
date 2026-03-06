@@ -922,7 +922,13 @@ function signOut() {
 // ══════════════════════════════════════════
 async function gmailGet(path, params = {}) {
   const url = new URL('https://gmail.googleapis.com/gmail/v1/' + path);
-  Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v));
+  Object.entries(params).forEach(([k,v]) => {
+    if (Array.isArray(v)) {
+      v.forEach(item => url.searchParams.append(k, item));
+    } else {
+      url.searchParams.set(k, v);
+    }
+  });
   const r = await fetch(url, { headers: { Authorization: 'Bearer ' + accessToken } });
   if (!r.ok) throw new Error(await r.text());
   return r.json();
@@ -997,7 +1003,7 @@ async function fetchMessages(folder, append) {
 
   // Fetch metadata for each message
   const details = await Promise.all(
-    messages.map(m => gmailGet(`users/me/messages/${m.id}`, { format: 'metadata', metadataHeaders: 'From,To,Subject,Date' }).catch(() => null))
+    messages.map(m => gmailGet(`users/me/messages/${m.id}`, { format: 'metadata', metadataHeaders: ['From', 'To', 'Subject', 'Date'] }).catch(() => null))
   );
 
   const list = document.getElementById('email-list');
@@ -1293,7 +1299,7 @@ async function searchEmails() {
     const data = await gmailGet('users/me/messages', { q, maxResults: 30 });
     const messages = data.messages || [];
     const details = await Promise.all(
-      messages.map(m => gmailGet(`users/me/messages/${m.id}`, { format: 'metadata', metadataHeaders: 'From,To,Subject,Date' }).catch(() => null))
+      messages.map(m => gmailGet(`users/me/messages/${m.id}`, { format: 'metadata', metadataHeaders: ['From', 'To', 'Subject', 'Date'] }).catch(() => null))
     );
 
     const list = document.getElementById('email-list');
