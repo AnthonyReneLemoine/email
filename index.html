@@ -1618,10 +1618,18 @@ async function loadUserLabels() {
         try {
           const { ids } = JSON.parse(e.dataTransfer.getData('application/json'));
           await Promise.all(ids.map(id =>
-            gmailPost(`users/me/messages/${id}/modify`, { addLabelIds: [label.id] })
+            gmailPost(`users/me/messages/${id}/modify`, { addLabelIds: [label.id], removeLabelIds: ['INBOX'] })
           ));
+          // Remove from list if currently viewing inbox
+          if (currentFolder === 'INBOX') {
+            ids.forEach(id => {
+              const el = document.querySelector(`.email-item[data-id="${id}"]`);
+              if (el) el.remove();
+            });
+            if (currentMessageId && ids.includes(currentMessageId)) showEmptyState();
+          }
           const n = ids.length;
-          showToast(`${n} email${n > 1 ? 's' : ''} ajouté${n > 1 ? 's' : ''} dans "${label.name}"`, 'success');
+          showToast(`${n} email${n > 1 ? 's' : ''} déplacé${n > 1 ? 's' : ''} dans "${label.name}"`, 'success');
         } catch(err) {
           showToast('Erreur lors du déplacement', 'error');
         }
