@@ -491,95 +491,138 @@
   }
 
   /* ── COMPOSE MODAL ── */
-  #compose-modal {
+  #compose-overlay {
     display: none;
     position: fixed;
-    bottom: 0;
-    right: 24px;
-    width: 520px;
+    inset: 0;
+    background: rgba(0,0,0,.6);
+    backdrop-filter: blur(3px);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+  }
+  #compose-overlay.open { display: flex; }
+
+  #compose-modal {
+    width: 640px;
+    max-width: 95vw;
+    max-height: 90vh;
     background: var(--surface2);
     border: 1px solid var(--border2);
-    border-bottom: none;
-    border-radius: 6px 6px 0 0;
-    box-shadow: 0 -4px 32px rgba(0,0,0,.5);
-    z-index: 100;
+    border-radius: 8px;
+    box-shadow: 0 24px 64px rgba(0,0,0,.7);
+    display: flex;
     flex-direction: column;
+    overflow: hidden;
   }
 
-  #compose-modal.open { display: flex; }
-
   .compose-header {
-    padding: 10px 14px;
+    padding: 14px 18px;
     background: var(--surface3);
     border-bottom: 1px solid var(--border2);
-    border-radius: 6px 6px 0 0;
     display: flex;
     align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+
+  .compose-header-icon { font-size: 15px; color: var(--accent); }
+
+  .compose-header-title {
     font-size: 13px;
-    font-weight: 500;
+    font-weight: 600;
     font-family: var(--mono);
     color: var(--text);
-    cursor: move;
+    flex: 1;
+    letter-spacing: 0.03em;
   }
 
   .compose-close {
-    margin-left: auto;
     background: none;
     border: none;
     color: var(--text3);
     cursor: pointer;
-    font-size: 16px;
-    padding: 0 2px;
-    transition: color .15s;
+    font-size: 18px;
+    line-height: 1;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: all .15s;
   }
-  .compose-close:hover { color: var(--text); }
+  .compose-close:hover { color: var(--text); background: rgba(255,255,255,.06); }
+
+  .compose-fields { flex-shrink: 0; border-bottom: 1px solid var(--border); }
 
   .compose-field {
     display: flex;
     align-items: center;
     border-bottom: 1px solid var(--border);
   }
+  .compose-field:last-child { border-bottom: none; }
 
   .compose-field label {
     font-size: 11px;
     font-family: var(--mono);
     color: var(--text3);
-    width: 40px;
-    padding: 8px 12px;
+    width: 52px;
+    padding: 10px 14px;
     flex-shrink: 0;
     text-transform: uppercase;
+    letter-spacing: 0.06em;
   }
 
   .compose-field input {
     flex: 1;
     background: none;
     border: none;
-    padding: 8px 12px 8px 0;
+    padding: 10px 14px 10px 0;
     font-family: var(--sans);
     font-size: 13px;
     color: var(--text);
     outline: none;
   }
+  .compose-field input::placeholder { color: var(--text3); }
+
+  #compose-body-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 
   #compose-body-field {
     flex: 1;
     background: none;
     border: none;
-    padding: 12px 14px;
+    padding: 16px 18px;
     font-family: var(--sans);
     font-size: 13px;
+    line-height: 1.6;
     color: var(--text);
     outline: none;
     resize: none;
-    min-height: 200px;
+    min-height: 240px;
   }
+  #compose-body-field::placeholder { color: var(--text3); }
 
   .compose-footer {
-    padding: 10px 14px;
+    padding: 12px 18px;
     border-top: 1px solid var(--border);
     display: flex;
+    align-items: center;
     gap: 8px;
+    flex-shrink: 0;
+    background: var(--surface3);
   }
+
+  /* ── MSG CLOSE BTN ── */
+  #msg-close-btn {
+    background: none;
+    border: none;
+    color: var(--text3);
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    padding: 4px 7px;
+    border-radius: var(--radius);
+    transition: all .15s;
+    flex-shrink: 0;
+  }
+  #msg-close-btn:hover { color: var(--text); background: var(--surface3); }
 
   /* ── LOGIN SCREEN ── */
   #login-screen {
@@ -773,7 +816,7 @@
     <p style="font-size:11px;color:var(--text3);font-family:var(--mono);text-align:center;">
       OAuth 2.0 · Aucune donnée stockée côté serveur
     </p>
-    <p style="font-size:10px;color:var(--text3);font-family:var(--mono);">v7</p>
+    <p style="font-size:10px;color:var(--text3);font-family:var(--mono);">v8</p>
   </div>
 </div>
 
@@ -783,11 +826,12 @@
   <!-- TOPBAR -->
   <div id="topbar">
     <span class="logo">▸ MAIL</span>
-    <span class="version">v7</span>
+    <span class="version">v8</span>
     <div id="search-wrap">
       <input id="search" type="text" placeholder="Rechercher dans les emails…" onkeydown="if(event.key==='Enter')searchEmails()">
     </div>
     <div id="user-info">
+      <button class="btn btn-primary" onclick="openCompose()" title="Nouveau message (C)">✎ Composer</button>
       <span id="user-email"></span>
       <button class="btn btn-ghost" onclick="signOut()">Déconnexion</button>
     </div>
@@ -860,7 +904,10 @@
 
       <div id="msg-view">
         <div id="msg-header">
-          <div id="msg-subject"></div>
+          <div style="display:flex;align-items:flex-start;gap:8px;">
+            <div id="msg-subject" style="flex:1;font-size:17px;font-weight:600;color:var(--text);line-height:1.3;margin-bottom:10px;"></div>
+            <button id="msg-close-btn" onclick="showEmptyState()" title="Fermer (Esc)">✕</button>
+          </div>
           <div class="msg-meta">
             <div class="msg-avatar" id="msg-avatar"></div>
             <div class="msg-from-block">
@@ -888,23 +935,34 @@
 </div>
 
 <!-- ══════════════ COMPOSE MODAL ══════════════ -->
-<div id="compose-modal">
-  <div class="compose-header">
-    <span id="compose-title">Nouveau message</span>
-    <button class="compose-close" onclick="closeCompose()">✕</button>
-  </div>
-  <div class="compose-field">
-    <label>À</label>
-    <input id="compose-to" type="email" placeholder="destinataire@exemple.com">
-  </div>
-  <div class="compose-field">
-    <label>Objet</label>
-    <input id="compose-subject" type="text" placeholder="Objet du message">
-  </div>
-  <textarea id="compose-body-field" placeholder="Rédigez votre message…"></textarea>
-  <div class="compose-footer">
-    <button class="btn btn-primary" onclick="sendEmail()">Envoyer</button>
-    <button class="btn btn-ghost" onclick="closeCompose()">Annuler</button>
+<div id="compose-overlay" onclick="if(event.target===this)closeCompose()">
+  <div id="compose-modal">
+    <div class="compose-header">
+      <span class="compose-header-icon">✎</span>
+      <span class="compose-header-title" id="compose-title">Nouveau message</span>
+      <button class="compose-close" onclick="closeCompose()" title="Fermer">✕</button>
+    </div>
+    <div class="compose-fields">
+      <div class="compose-field">
+        <label>À</label>
+        <input id="compose-to" type="email" placeholder="destinataire@exemple.com" autocomplete="email">
+      </div>
+      <div class="compose-field">
+        <label>Cc</label>
+        <input id="compose-cc" type="email" placeholder="(optionnel)">
+      </div>
+      <div class="compose-field">
+        <label>Objet</label>
+        <input id="compose-subject" type="text" placeholder="Objet du message">
+      </div>
+    </div>
+    <div id="compose-body-wrap">
+      <textarea id="compose-body-field" placeholder="Rédigez votre message…"></textarea>
+    </div>
+    <div class="compose-footer">
+      <button class="btn btn-primary" onclick="sendEmail()">↑ Envoyer</button>
+      <button class="btn btn-ghost" onclick="closeCompose()">Annuler</button>
+    </div>
   </div>
 </div>
 
@@ -949,6 +1007,10 @@ const FOLDER_NAMES = {
 //  INIT
 // ══════════════════════════════════════════
 window.onload = () => {
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeCompose();
+    if (e.key === 'c' && !e.ctrlKey && !e.metaKey && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') openCompose();
+  });
   if (CLIENT_ID === 'COLLE_TON_CLIENT_ID_ICI') {
     document.getElementById('config-notice').style.display = 'block';
   }
@@ -1531,12 +1593,13 @@ function openCompose(toAddr = '', subject = '', body = '', title = 'Nouveau mess
   document.getElementById('compose-subject').value = subject;
   document.getElementById('compose-body-field').value = body;
   document.getElementById('compose-title').textContent = title;
-  document.getElementById('compose-modal').classList.add('open');
+  document.getElementById('compose-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('compose-to').focus(), 50);
   replyData = null;
 }
 
 function closeCompose() {
-  document.getElementById('compose-modal').classList.remove('open');
+  document.getElementById('compose-overlay').classList.remove('open');
 }
 
 function replyEmail() {
@@ -1567,16 +1630,15 @@ function forwardEmail() {
 
 async function sendEmail() {
   const to = document.getElementById('compose-to').value.trim();
+  const cc = document.getElementById('compose-cc').value.trim();
   const subject = document.getElementById('compose-subject').value.trim();
   const body = document.getElementById('compose-body-field').value;
 
   if (!to) { showToast('Destinataire requis', 'error'); return; }
 
-  let raw = `To: ${to}\r\nSubject: =?UTF-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${body}`;
-
-  if (replyData) {
-    raw = `To: ${to}\r\nSubject: =?UTF-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=\r\nIn-Reply-To: ${replyData.inReplyTo}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${body}`;
-  }
+  const ccLine = cc ? `\r\nCc: ${cc}` : '';
+  const replyLine = replyData ? `\r\nIn-Reply-To: ${replyData.inReplyTo}` : '';
+  let raw = `To: ${to}${ccLine}\r\nSubject: =?UTF-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=${replyLine}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${body}`;
 
   const encoded = btoa(unescape(encodeURIComponent(raw))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 
