@@ -6,6 +6,10 @@
 <title>Mail</title>
 <link rel="icon" type="image/png" href="iconmonstr-email-10-240.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -1053,6 +1057,9 @@
 const CLIENT_ID = '58430652200-bcn4ohfmg6at6ei5t4eofeppkv7o083j.apps.googleusercontent.com';
 const SCOPES = 'https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.send';
 
+// ── FIREBASE CONFIG — remplace avec ta config Firebase ──
+const FIREBASE_CONFIG = null; // ex: { apiKey: "...", authDomain: "...", projectId: "...", ... }
+
 // ══════════════════════════════════════════
 //  STATE
 // ══════════════════════════════════════════
@@ -1064,6 +1071,8 @@ let currentMessage = null;
 let pageTokens = { INBOX: null };
 let replyData = null;
 let selectedIds = new Set();
+let db = null;
+let firebaseUid = null;
 
 const FOLDER_LABELS = {
   INBOX: 'INBOX',
@@ -1086,7 +1095,47 @@ const FOLDER_NAMES = {
 // ══════════════════════════════════════════
 //  INIT
 // ══════════════════════════════════════════
+// ══════════════════════════════════════════
+//  FIREBASE
+// ══════════════════════════════════════════
+function initFirebase() {
+  if (!FIREBASE_CONFIG) return;
+  try {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.firestore();
+  } catch(e) {
+    console.warn('Firebase init failed:', e);
+  }
+}
+
+async function firebaseSignIn() {
+  if (!db || !accessToken) return;
+  try {
+    const credential = firebase.auth.GoogleAuthProvider.credential(null, accessToken);
+    const result = await firebase.auth().signInWithCredential(credential);
+    firebaseUid = result.user.uid;
+  } catch(e) {
+    console.warn('Firebase sign-in failed:', e);
+  }
+}
+
+async function loadSigFromFirebase() {
+  if (!db || !firebaseUid) return null;
+  try {
+    const doc = await db.collection('users').doc(firebaseUid).get();
+    return doc.exists ? (doc.data().signature ?? null) : null;
+  } catch(e) {
+    return null;
+  }
+}
+
+async function saveSigToFirebase(sig) {
+  if (!db || !firebaseUid) return;
+  await db.collection('users').doc(firebaseUid).set({ signature: sig }, { merge: true });
+}
+
 window.onload = () => {
+  initFirebase();
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') closeCompose();
     if (e.key === 'c' && !e.ctrlKey && !e.metaKey && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') openCompose();
@@ -1126,12 +1175,16 @@ function trySilentRefresh() {
   tokenClient.requestAccessToken({ prompt: '' });
 }
 
-function showApp() {
+async function showApp() {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('main-app').style.display = 'flex';
   loadFolder('INBOX');
   updateInboxBadge();
   loadUserLabels();
+  // Firebase : signer + charger la signature
+  await firebaseSignIn();
+  const remoteSig = await loadSigFromFirebase();
+  if (remoteSig !== null) localStorage.setItem('mail_signature', remoteSig);
 }
 
 function handleToken(resp) {
@@ -1744,19 +1797,21 @@ function closeSigModal() {
   document.getElementById('sig-overlay').classList.remove('open');
 }
 
-function saveSig() {
+async function saveSig() {
   const val = document.getElementById('sig-textarea').value.trim();
   if (val) localStorage.setItem('mail_signature', val);
   else localStorage.removeItem('mail_signature');
   closeSigModal();
   showToast('Signature enregistrée', 'success');
+  await saveSigToFirebase(val);
 }
 
-function clearSig() {
+async function clearSig() {
   localStorage.removeItem('mail_signature');
   document.getElementById('sig-textarea').value = '';
   closeSigModal();
   showToast('Signature supprimée', 'success');
+  await saveSigToFirebase('');
 }
 
 function closeCompose() {
