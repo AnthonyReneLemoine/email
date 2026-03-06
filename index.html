@@ -685,6 +685,37 @@
     text-align: center;
     max-width: 340px;
   }
+
+  /* ── MULTI-SELECT ── */
+  .email-cb-area {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity .15s;
+    cursor: pointer;
+    z-index: 1;
+  }
+  .email-item:hover .email-cb-area,
+  .email-item.selected .email-cb-area { opacity: 1; }
+  .email-cb { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; }
+  .email-item.selected { background: rgba(74,222,128,0.07) !important; }
+  .email-item.selected.unread::before { display: none; }
+
+  /* ── BULK BAR ── */
+  #bulk-bar {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    background: var(--surface3);
+    border-bottom: 1px solid var(--border2);
+    flex-shrink: 0;
+  }
+  #bulk-count { font-size: 11px; font-family: var(--mono); color: var(--text2); flex: 1; }
 </style>
 </head>
 <body>
@@ -706,7 +737,7 @@
     <p style="font-size:11px;color:var(--text3);font-family:var(--mono);text-align:center;">
       OAuth 2.0 · Aucune donnée stockée côté serveur
     </p>
-    <p style="font-size:10px;color:var(--text3);font-family:var(--mono);">v2</p>
+    <p style="font-size:10px;color:var(--text3);font-family:var(--mono);">v4</p>
   </div>
 </div>
 
@@ -716,7 +747,7 @@
   <!-- TOPBAR -->
   <div id="topbar">
     <span class="logo">▸ MAIL</span>
-    <span class="version">v2</span>
+    <span class="version">v4</span>
     <div id="search-wrap">
       <input id="search" type="text" placeholder="Rechercher dans les emails…" onkeydown="if(event.key==='Enter')searchEmails()">
     </div>
@@ -757,6 +788,11 @@
           <span class="nav-icon">⚐</span> Spam
         </div>
       </div>
+
+      <div class="nav-section" id="labels-section" style="display:none">
+        <div class="nav-label">Libellés</div>
+        <div id="labels-list"></div>
+      </div>
     </div>
 
     <!-- EMAIL LIST -->
@@ -766,6 +802,11 @@
         <div class="list-actions">
           <button class="icon-btn" title="Actualiser" onclick="refreshCurrentFolder()">↺</button>
         </div>
+      </div>
+      <div id="bulk-bar">
+        <span id="bulk-count"></span>
+        <button class="btn btn-danger" onclick="deleteSelected()">⌫ Supprimer</button>
+        <button class="btn btn-ghost" onclick="clearSelection()">✕ Désélectionner</button>
       </div>
       <div id="email-list">
         <div style="padding:40px;text-align:center;">
@@ -847,6 +888,7 @@ let currentMessageId = null;
 let currentMessage = null;
 let pageTokens = { INBOX: null };
 let replyData = null;
+let selectedIds = new Set();
 
 const FOLDER_LABELS = {
   INBOX: 'INBOX',
@@ -900,6 +942,7 @@ function handleToken(resp) {
     document.getElementById('main-app').style.display = 'flex';
     loadFolder('INBOX');
     updateInboxBadge();
+    loadUserLabels();
   });
 }
 
@@ -967,6 +1010,7 @@ async function fetchUserInfo() {
 async function loadFolder(folder, navEl) {
   currentFolder = folder;
   currentMessageId = null;
+  clearSelection();
   showEmptyState();
 
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
@@ -993,7 +1037,8 @@ function refreshCurrentFolder() {
 let messageCache = {};
 
 async function fetchMessages(folder, append) {
-  const params = { labelIds: FOLDER_LABELS[folder], maxResults: 30, format: 'metadata' };
+  const labelId = FOLDER_LABELS[folder] || folder;
+  const params = { labelIds: labelId, maxResults: 30, format: 'metadata' };
   if (append && pageTokens[folder]) params.pageToken = pageTokens[folder];
 
   const data = await gmailGet('users/me/messages', params);
@@ -1050,6 +1095,9 @@ function buildEmailItem(msg) {
   el.className = 'email-item' + (isUnread ? ' unread' : '');
   el.dataset.id = msg.id;
   el.innerHTML = `
+    <label class="email-cb-area" onclick="event.stopPropagation()">
+      <input type="checkbox" class="email-cb" onchange="toggleSelect(event, '${msg.id}')">
+    </label>
     <div class="email-from">
       <span>${escHtml(fromName.substring(0,30))}</span>
       <span class="email-date">${dateStr}</span>
@@ -1213,6 +1261,84 @@ function removeCurrentFromList() {
   if (el) el.remove();
   showEmptyState();
   currentMessageId = null;
+}
+
+// ══════════════════════════════════════════
+//  MULTI-SELECT
+// ══════════════════════════════════════════
+function toggleSelect(e, id) {
+  const el = document.querySelector(`.email-item[data-id="${id}"]`);
+  if (e.target.checked) {
+    selectedIds.add(id);
+    if (el) el.classList.add('selected');
+  } else {
+    selectedIds.delete(id);
+    if (el) el.classList.remove('selected');
+  }
+  updateBulkBar();
+}
+
+function updateBulkBar() {
+  const bar = document.getElementById('bulk-bar');
+  if (selectedIds.size > 0) {
+    bar.style.display = 'flex';
+    document.getElementById('bulk-count').textContent = `${selectedIds.size} sélectionné(s)`;
+  } else {
+    bar.style.display = 'none';
+  }
+}
+
+function clearSelection() {
+  selectedIds.clear();
+  document.querySelectorAll('.email-item.selected').forEach(el => el.classList.remove('selected'));
+  document.querySelectorAll('.email-cb').forEach(cb => cb.checked = false);
+  updateBulkBar();
+}
+
+async function deleteSelected() {
+  if (!selectedIds.size) return;
+  if (!confirm(`Supprimer ${selectedIds.size} email(s) ?`)) return;
+  showLoadingBar();
+  try {
+    await Promise.all([...selectedIds].map(id => gmailPost(`users/me/messages/${id}/trash`, {})));
+    selectedIds.forEach(id => {
+      const el = document.querySelector(`.email-item[data-id="${id}"]`);
+      if (el) el.remove();
+    });
+    selectedIds.clear();
+    updateBulkBar();
+    showToast('Emails déplacés dans la corbeille', 'success');
+  } catch(e) {
+    showToast('Erreur: ' + e.message, 'error');
+  }
+  hideLoadingBar();
+}
+
+// ══════════════════════════════════════════
+//  LIBELLÉS GMAIL
+// ══════════════════════════════════════════
+async function loadUserLabels() {
+  try {
+    const data = await gmailGet('users/me/labels');
+    const userLabels = (data.labels || [])
+      .filter(l => l.type === 'user' && l.labelListVisibility !== 'labelHide')
+      .sort((a, b) => a.name.localeCompare(b.name));
+    if (!userLabels.length) return;
+    const list = document.getElementById('labels-list');
+    list.innerHTML = '';
+    userLabels.forEach(label => {
+      const item = document.createElement('div');
+      item.className = 'nav-item';
+      item.dataset.folder = label.id;
+      item.innerHTML = `<span class="nav-icon" style="font-size:11px;">⊞</span> ${escHtml(label.name)}`;
+      item.onclick = () => {
+        FOLDER_NAMES[label.id] = label.name;
+        loadFolder(label.id, item);
+      };
+      list.appendChild(item);
+    });
+    document.getElementById('labels-section').style.display = 'block';
+  } catch(e) {}
 }
 
 // ══════════════════════════════════════════
