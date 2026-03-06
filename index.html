@@ -323,11 +323,24 @@
 
   .email-item.unread .email-from { color: var(--unread); }
 
+  .email-date-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    flex-shrink: 0;
+    gap: 2px;
+  }
+
   .email-date {
     font-size: 10px;
     font-family: var(--mono);
     color: var(--text3);
-    flex-shrink: 0;
+  }
+
+  .email-attach-icon {
+    font-size: 11px;
+    color: #d93025;
+    line-height: 1;
   }
 
   .email-subject {
@@ -1233,9 +1246,12 @@ function buildEmailItem(msg) {
     </label>
     <div class="email-from">
       <span>${escHtml(fromName.substring(0,30))}</span>
-      <span class="email-date">${dateStr}</span>
+      <div class="email-date-wrap">
+        <span class="email-date">${dateStr}</span>
+        ${hasAttachments(msg) ? '<span class="email-attach-icon">📎</span>' : ''}
+      </div>
     </div>
-    <div class="email-subject">${escHtml(subject)}${hasAttachments(msg) ? ' <span style="font-size:10px;opacity:.7;vertical-align:middle;">📎</span>' : ''}</div>
+    <div class="email-subject">${escHtml(subject)}</div>
     <div class="email-snippet">${escHtml(snippet.substring(0,80))}</div>
   `;
   el.onclick = () => openMessage(msg.id, el);
