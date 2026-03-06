@@ -731,6 +731,16 @@
   .email-item.selected { background: rgba(74,222,128,0.07) !important; }
   .email-item.selected.unread::before { display: none; }
 
+  .email-item[draggable="true"] { cursor: grab; }
+  .email-item[draggable="true"]:active { cursor: grabbing; }
+  .email-item.dragging { opacity: 0.35; pointer-events: none; }
+
+  .nav-item.drop-target {
+    background: var(--accent-dim2) !important;
+    color: var(--accent) !important;
+    border-left-color: var(--accent) !important;
+  }
+
   /* ── BULK BAR ── */
   #bulk-bar {
     display: none;
@@ -1160,6 +1170,19 @@ function buildEmailItem(msg) {
     <div class="email-snippet">${escHtml(snippet.substring(0,80))}</div>
   `;
   el.onclick = () => openMessage(msg.id, el);
+
+  el.draggable = true;
+  el.addEventListener('dragstart', e => {
+    const selected = [...document.querySelectorAll('.email-item.selected')];
+    const ids = selected.length > 0 && selected.some(s => s.dataset.id === msg.id)
+      ? selected.map(s => s.dataset.id)
+      : [msg.id];
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('application/json', JSON.stringify({ ids }));
+    setTimeout(() => el.classList.add('dragging'), 0);
+  });
+  el.addEventListener('dragend', () => el.classList.remove('dragging'));
+
   return el;
 }
 
@@ -1470,6 +1493,30 @@ async function loadUserLabels() {
         FOLDER_NAMES[label.id] = label.name;
         loadFolder(label.id, item);
       };
+
+      item.addEventListener('dragover', e => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        item.classList.add('drop-target');
+      });
+      item.addEventListener('dragleave', e => {
+        if (!item.contains(e.relatedTarget)) item.classList.remove('drop-target');
+      });
+      item.addEventListener('drop', async e => {
+        e.preventDefault();
+        item.classList.remove('drop-target');
+        try {
+          const { ids } = JSON.parse(e.dataTransfer.getData('application/json'));
+          await Promise.all(ids.map(id =>
+            gmailPost(`users/me/messages/${id}/modify`, { addLabelIds: [label.id] })
+          ));
+          const n = ids.length;
+          showToast(`${n} email${n > 1 ? 's' : ''} ajouté${n > 1 ? 's' : ''} dans "${label.name}"`, 'success');
+        } catch(err) {
+          showToast('Erreur lors du déplacement', 'error');
+        }
+      });
+
       list.appendChild(item);
     });
     document.getElementById('labels-section').style.display = 'block';
