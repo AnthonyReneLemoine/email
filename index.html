@@ -1255,13 +1255,8 @@ function extractBody(payload) {
 }
 
 function hasAttachments(msg) {
-  function check(part) {
-    if (!part) return false;
-    if (part.filename && part.filename.length > 0) return true;
-    if (part.parts) return part.parts.some(check);
-    return false;
-  }
-  return check(msg.payload);
+  const mime = msg.payload?.mimeType || '';
+  return mime === 'multipart/mixed' || mime === 'multipart/related';
 }
 
 function extractAttachments(payload) {
