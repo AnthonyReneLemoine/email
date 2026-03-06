@@ -454,6 +454,32 @@
 
   #msg-body-inner a { color: var(--accent); }
 
+  /* ── ATTACHMENTS ── */
+  #msg-attachments {
+    padding: 12px 20px 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .attachment-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--text2);
+    cursor: pointer;
+    transition: all .15s;
+    text-decoration: none;
+  }
+  .attachment-chip:hover { background: var(--surface3); color: var(--text); border-color: var(--accent); }
+  .attachment-chip .att-icon { font-size: 13px; }
+  .attachment-chip .att-size { color: var(--text3); font-size: 10px; }
+
   /* HTML email iframe */
   #msg-iframe {
     width: 100%;
@@ -842,6 +868,7 @@
           </div>
         </div>
         <div id="msg-body">
+          <div id="msg-attachments" style="display:none"></div>
           <div id="msg-body-inner"></div>
         </div>
       </div>
@@ -1188,6 +1215,23 @@ function renderMessage(msg) {
     bodyEl.textContent = text || msg.snippet || '';
   }
 
+  // Attachments
+  const attachments = extractAttachments(msg.payload);
+  const attEl = document.getElementById('msg-attachments');
+  if (attachments.length) {
+    attEl.style.display = 'flex';
+    attEl.innerHTML = attachments.map(att => `
+      <div class="attachment-chip" onclick="downloadAttachment('${msg.id}','${att.attachmentId}','${escHtml(att.filename)}','${att.mimeType}')">
+        <span class="att-icon">${attIcon(att.mimeType)}</span>
+        <span>${escHtml(att.filename)}</span>
+        <span class="att-size">${formatSize(att.size)}</span>
+      </div>
+    `).join('');
+  } else {
+    attEl.style.display = 'none';
+    attEl.innerHTML = '';
+  }
+
   document.getElementById('empty-state').style.display = 'none';
   document.getElementById('msg-view').style.display = 'flex';
 }
@@ -1208,6 +1252,65 @@ function extractBody(payload) {
 
   walk(payload);
   return { html, text };
+}
+
+function extractAttachments(payload) {
+  const attachments = [];
+
+  function walk(part) {
+    if (!part) return;
+    if (part.filename && part.body?.attachmentId) {
+      attachments.push({
+        filename: part.filename,
+        mimeType: part.mimeType || 'application/octet-stream',
+        attachmentId: part.body.attachmentId,
+        size: part.body.size || 0,
+      });
+    }
+    if (part.parts) part.parts.forEach(walk);
+  }
+
+  walk(payload);
+  return attachments;
+}
+
+async function downloadAttachment(messageId, attachmentId, filename, mimeType) {
+  showLoadingBar();
+  try {
+    const data = await gmailGet(`users/me/messages/${messageId}/attachments/${attachmentId}`);
+    const binary = atob(data.data.replace(/-/g, '+').replace(/_/g, '/'));
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const blob = new Blob([bytes], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  } catch(e) {
+    showToast('Erreur téléchargement: ' + e.message, 'error');
+  }
+  hideLoadingBar();
+}
+
+function attIcon(mime) {
+  if (mime.startsWith('image/')) return '🖼';
+  if (mime.startsWith('video/')) return '▶';
+  if (mime.startsWith('audio/')) return '♪';
+  if (mime.includes('pdf')) return '📄';
+  if (mime.includes('zip') || mime.includes('compressed') || mime.includes('archive')) return '📦';
+  if (mime.includes('spreadsheet') || mime.includes('excel') || mime.includes('csv')) return '📊';
+  if (mime.includes('presentation') || mime.includes('powerpoint')) return '📊';
+  if (mime.includes('word') || mime.includes('document')) return '📝';
+  return '📎';
+}
+
+function formatSize(bytes) {
+  if (!bytes) return '';
+  if (bytes < 1024) return bytes + ' o';
+  if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + ' Ko';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' Mo';
 }
 
 function decodeBase64(data) {
