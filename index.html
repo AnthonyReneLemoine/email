@@ -929,21 +929,46 @@ function initGoogleAuth() {
     scope: SCOPES,
     callback: handleToken,
   });
+  tryRestoreSession();
+}
+
+function tryRestoreSession() {
+  const token = localStorage.getItem('gmail_token');
+  const expiry = parseInt(localStorage.getItem('gmail_token_expiry') || '0');
+  if (token && Date.now() < expiry - 60000) {
+    accessToken = token;
+    fetchUserInfo().then(showApp).catch(() => trySilentRefresh());
+  } else if (token) {
+    trySilentRefresh();
+  }
+}
+
+function trySilentRefresh() {
+  tokenClient.requestAccessToken({ prompt: '' });
+}
+
+function showApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('main-app').style.display = 'flex';
+  loadFolder('INBOX');
+  updateInboxBadge();
+  loadUserLabels();
 }
 
 function handleToken(resp) {
   if (resp.error) {
-    showToast('Erreur d\'authentification: ' + resp.error, 'error');
+    localStorage.removeItem('gmail_token');
+    localStorage.removeItem('gmail_token_expiry');
+    if (resp.error !== 'user_logged_out') {
+      showToast('Erreur d\'authentification: ' + resp.error, 'error');
+    }
     return;
   }
   accessToken = resp.access_token;
-  fetchUserInfo().then(() => {
-    document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('main-app').style.display = 'flex';
-    loadFolder('INBOX');
-    updateInboxBadge();
-    loadUserLabels();
-  });
+  const expiry = Date.now() + (resp.expires_in || 3600) * 1000;
+  localStorage.setItem('gmail_token', accessToken);
+  localStorage.setItem('gmail_token_expiry', String(expiry));
+  fetchUserInfo().then(showApp);
 }
 
 function signIn() {
@@ -956,6 +981,8 @@ function signOut() {
     google.accounts.oauth2.revoke(accessToken, () => {});
   }
   accessToken = null;
+  localStorage.removeItem('gmail_token');
+  localStorage.removeItem('gmail_token_expiry');
   document.getElementById('main-app').style.display = 'none';
   document.getElementById('login-screen').style.display = 'flex';
 }
