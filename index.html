@@ -627,6 +627,48 @@
     background: var(--surface3);
   }
 
+  /* ── SIGNATURE MODAL ── */
+  #sig-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.5);
+    backdrop-filter: blur(2px);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+  }
+  #sig-overlay.open { display: flex; }
+
+  #sig-modal {
+    width: 480px;
+    max-width: 95vw;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    box-shadow: 0 16px 48px rgba(0,0,0,.5);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  #sig-modal .compose-header { background: var(--surface3); border-bottom: 1px solid var(--border2); }
+
+  #sig-textarea {
+    flex: 1;
+    background: none;
+    border: none;
+    padding: 16px 18px;
+    font-family: var(--sans);
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text);
+    outline: none;
+    resize: none;
+    min-height: 160px;
+  }
+  #sig-textarea::placeholder { color: var(--text3); }
+
   /* ── MSG CLOSE BTN ── */
   #msg-close-btn {
     background: none;
@@ -852,6 +894,7 @@
     <div id="user-info">
       <button class="btn btn-primary" onclick="openCompose()" title="Nouveau message (C)">✎ Composer</button>
       <span id="user-email"></span>
+      <button class="btn btn-ghost" onclick="openSigModal()" title="Signature">✍ Signature</button>
       <button class="btn btn-ghost" onclick="signOut()">Déconnexion</button>
     </div>
   </div>
@@ -982,6 +1025,23 @@
     <div class="compose-footer">
       <button class="btn btn-primary" onclick="sendEmail()">↑ Envoyer</button>
       <button class="btn btn-ghost" onclick="closeCompose()">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ SIGNATURE MODAL ══════════════ -->
+<div id="sig-overlay" onclick="if(event.target===this)closeSigModal()">
+  <div id="sig-modal">
+    <div class="compose-header">
+      <span class="compose-header-icon">✍</span>
+      <span class="compose-header-title">Ma signature</span>
+      <button class="compose-close" onclick="closeSigModal()" title="Fermer">✕</button>
+    </div>
+    <textarea id="sig-textarea" placeholder="Rédigez votre signature…&#10;Ex : Cordialement,&#10;Jean Dupont"></textarea>
+    <div class="compose-footer">
+      <button class="btn btn-primary" onclick="saveSig()">Enregistrer</button>
+      <button class="btn btn-danger" onclick="clearSig()">Supprimer</button>
+      <button class="btn btn-ghost" onclick="closeSigModal()">Annuler</button>
     </div>
   </div>
 </div>
@@ -1662,13 +1722,41 @@ async function loadUserLabels() {
 //  COMPOSE / REPLY / FORWARD
 // ══════════════════════════════════════════
 function openCompose(toAddr = '', subject = '', body = '', title = 'Nouveau message') {
+  const sig = localStorage.getItem('mail_signature') || '';
+  const isNew = title === 'Nouveau message';
   document.getElementById('compose-to').value = toAddr;
   document.getElementById('compose-subject').value = subject;
-  document.getElementById('compose-body-field').value = body;
+  document.getElementById('compose-body-field').value = isNew && sig ? body + '\n\n-- \n' + sig : body;
   document.getElementById('compose-title').textContent = title;
   document.getElementById('compose-overlay').classList.add('open');
   setTimeout(() => document.getElementById('compose-to').focus(), 50);
   replyData = null;
+}
+
+// ── SIGNATURE ──
+function openSigModal() {
+  document.getElementById('sig-textarea').value = localStorage.getItem('mail_signature') || '';
+  document.getElementById('sig-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('sig-textarea').focus(), 50);
+}
+
+function closeSigModal() {
+  document.getElementById('sig-overlay').classList.remove('open');
+}
+
+function saveSig() {
+  const val = document.getElementById('sig-textarea').value.trim();
+  if (val) localStorage.setItem('mail_signature', val);
+  else localStorage.removeItem('mail_signature');
+  closeSigModal();
+  showToast('Signature enregistrée', 'success');
+}
+
+function clearSig() {
+  localStorage.removeItem('mail_signature');
+  document.getElementById('sig-textarea').value = '';
+  closeSigModal();
+  showToast('Signature supprimée', 'success');
 }
 
 function closeCompose() {
