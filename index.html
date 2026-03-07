@@ -1199,25 +1199,19 @@ function showLoginForm() {
   document.getElementById('login-form').style.display = 'flex';
 }
 
+let silentRefreshTimer = null;
+
 function trySilentRefresh() {
   showLoginLoading('Reconnexion…');
+  // Timeout de secours : si pas de réponse en 8s → afficher le bouton
+  silentRefreshTimer = setTimeout(() => {
+    showLoginForm();
+  }, 8000);
   tokenClient.requestAccessToken({ prompt: '' });
 }
 
-async function showApp() {
-  document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('main-app').style.display = 'flex';
-  loadFolder('INBOX');
-  updateInboxBadge();
-  loadUserLabels();
-  startPolling();
-  // Firebase : signer + charger la signature
-  await firebaseSignIn();
-  const remoteSig = await loadSigFromFirebase();
-  if (remoteSig !== null) localStorage.setItem('mail_signature', remoteSig);
-}
-
 function handleToken(resp) {
+  clearTimeout(silentRefreshTimer);
   if (resp.error) {
     localStorage.removeItem('gmail_token');
     localStorage.removeItem('gmail_token_expiry');
@@ -1232,6 +1226,19 @@ function handleToken(resp) {
   localStorage.setItem('gmail_token', accessToken);
   localStorage.setItem('gmail_token_expiry', String(expiry));
   fetchUserInfo().then(showApp).catch(() => { showLoginForm(); });
+}
+
+async function showApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('main-app').style.display = 'flex';
+  loadFolder('INBOX');
+  updateInboxBadge();
+  loadUserLabels();
+  startPolling();
+  // Firebase : signer + charger la signature
+  await firebaseSignIn();
+  const remoteSig = await loadSigFromFirebase();
+  if (remoteSig !== null) localStorage.setItem('mail_signature', remoteSig);
 }
 
 function signIn() {
