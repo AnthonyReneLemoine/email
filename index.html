@@ -871,16 +871,27 @@
 <div id="login-screen">
   <div class="login-box">
     <div class="login-logo">▸ MAIL</div>
-    <p class="login-sub">Client Gmail personnel<br>hébergé sur GitHub Pages</p>
-    <div id="config-notice" id="config-warn" style="display:none">
-      ⚠ Remplace <code>CLIENT_ID</code> dans le code source avant de te connecter.
+
+    <!-- État : reconnexion silencieuse en cours -->
+    <div id="login-loading" style="display:none;flex-direction:column;align-items:center;gap:12px;">
+      <div class="spinner" style="width:28px;height:28px;"></div>
+      <p style="font-size:12px;color:var(--text3);font-family:var(--mono);" id="login-loading-msg">Reconnexion…</p>
     </div>
-    <button class="btn btn-primary" id="login-btn" onclick="signIn()" style="width:100%;padding:10px;font-size:14px;">
-      Se connecter avec Google
-    </button>
-    <p style="font-size:11px;color:var(--text3);font-family:var(--mono);text-align:center;">
-      OAuth 2.0 · Aucune donnée stockée côté serveur
-    </p>
+
+    <!-- État : bouton de connexion -->
+    <div id="login-form" style="display:flex;flex-direction:column;align-items:center;gap:16px;width:100%;">
+      <p class="login-sub">Client Gmail personnel<br>hébergé sur GitHub Pages</p>
+      <div id="config-notice" style="display:none">
+        ⚠ Remplace <code>CLIENT_ID</code> dans le code source avant de te connecter.
+      </div>
+      <button class="btn btn-primary" id="login-btn" onclick="signIn()" style="width:100%;padding:10px;font-size:14px;">
+        Se connecter avec Google
+      </button>
+      <p style="font-size:11px;color:var(--text3);font-family:var(--mono);text-align:center;">
+        OAuth 2.0 · Aucune donnée stockée côté serveur
+      </p>
+    </div>
+
     <p style="font-size:10px;color:var(--text3);font-family:var(--mono);">v8</p>
   </div>
 </div>
@@ -1166,14 +1177,30 @@ function tryRestoreSession() {
   const token = localStorage.getItem('gmail_token');
   const expiry = parseInt(localStorage.getItem('gmail_token_expiry') || '0');
   if (token && Date.now() < expiry - 60000) {
+    // Token encore valide — tenter de restaurer directement
     accessToken = token;
+    showLoginLoading('Restauration de la session…');
     fetchUserInfo().then(showApp).catch(() => trySilentRefresh());
   } else if (token) {
+    // Token expiré mais on a déjà eu une session — renouvellement silencieux
     trySilentRefresh();
   }
+  // Sinon : pas de token → l'écran de login s'affiche avec le bouton
+}
+
+function showLoginLoading(msg) {
+  document.getElementById('login-form').style.display = 'none';
+  document.getElementById('login-loading').style.display = 'flex';
+  document.getElementById('login-loading-msg').textContent = msg || 'Reconnexion…';
+}
+
+function showLoginForm() {
+  document.getElementById('login-loading').style.display = 'none';
+  document.getElementById('login-form').style.display = 'flex';
 }
 
 function trySilentRefresh() {
+  showLoginLoading('Reconnexion…');
   tokenClient.requestAccessToken({ prompt: '' });
 }
 
@@ -1194,7 +1221,8 @@ function handleToken(resp) {
   if (resp.error) {
     localStorage.removeItem('gmail_token');
     localStorage.removeItem('gmail_token_expiry');
-    if (resp.error !== 'user_logged_out') {
+    showLoginForm();
+    if (resp.error !== 'user_logged_out' && resp.error !== 'access_denied') {
       showToast('Erreur d\'authentification: ' + resp.error, 'error');
     }
     return;
@@ -1203,7 +1231,7 @@ function handleToken(resp) {
   const expiry = Date.now() + (resp.expires_in || 3600) * 1000;
   localStorage.setItem('gmail_token', accessToken);
   localStorage.setItem('gmail_token_expiry', String(expiry));
-  fetchUserInfo().then(showApp);
+  fetchUserInfo().then(showApp).catch(() => { showLoginForm(); });
 }
 
 function signIn() {
@@ -1218,7 +1246,10 @@ function signOut() {
   accessToken = null;
   localStorage.removeItem('gmail_token');
   localStorage.removeItem('gmail_token_expiry');
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  knownInboxIds = null;
   document.getElementById('main-app').style.display = 'none';
+  showLoginForm();
   document.getElementById('login-screen').style.display = 'flex';
 }
 
