@@ -1073,6 +1073,8 @@ let replyData = null;
 let selectedIds = new Set();
 let db = null;
 let firebaseUid = null;
+let knownInboxIds = null;   // null = pas encore initialisé (premier chargement)
+let pollTimer = null;
 
 const FOLDER_LABELS = {
   INBOX: 'INBOX',
@@ -1181,6 +1183,7 @@ async function showApp() {
   loadFolder('INBOX');
   updateInboxBadge();
   loadUserLabels();
+  startPolling();
   // Firebase : signer + charger la signature
   await firebaseSignIn();
   const remoteSig = await loadSigFromFirebase();
@@ -1901,6 +1904,61 @@ async function searchEmails() {
   } catch(e) {
     showToast('Erreur recherche: ' + e.message, 'error');
   }
+}
+
+// ══════════════════════════════════════════
+//  NOTIFICATION SONORE
+// ══════════════════════════════════════════
+function playNotificationSound() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const notes = [
+      { freq: 523.25, start: 0,    dur: 0.12 },  // Do5
+      { freq: 659.25, start: 0.13, dur: 0.12 },  // Mi5
+      { freq: 783.99, start: 0.26, dur: 0.22 },  // Sol5
+    ];
+    notes.forEach(({ freq, start, dur }) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, ctx.currentTime + start);
+      gain.gain.linearRampToValueAtTime(0.18, ctx.currentTime + start + 0.01);
+      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + start + dur);
+      osc.start(ctx.currentTime + start);
+      osc.stop(ctx.currentTime + start + dur + 0.05);
+    });
+    setTimeout(() => ctx.close(), 1000);
+  } catch(e) {}
+}
+
+async function pollInbox() {
+  try {
+    const data = await gmailGet('users/me/messages', { labelIds: 'INBOX', maxResults: 20 });
+    const ids = (data.messages || []).map(m => m.id);
+
+    if (knownInboxIds === null) {
+      // Premier appel : juste mémoriser sans jouer de son
+      knownInboxIds = new Set(ids);
+      return;
+    }
+
+    const newIds = ids.filter(id => !knownInboxIds.has(id));
+    if (newIds.length > 0) {
+      newIds.forEach(id => knownInboxIds.add(id));
+      playNotificationSound();
+      showToast(`${newIds.length} nouveau${newIds.length > 1 ? 'x' : ''} message${newIds.length > 1 ? 's' : ''}`, 'success');
+      updateInboxBadge();
+      if (currentFolder === 'INBOX') loadFolder('INBOX');
+    }
+  } catch(e) {}
+}
+
+function startPolling() {
+  pollInbox(); // initialise knownInboxIds
+  pollTimer = setInterval(pollInbox, 60_000);
 }
 
 // ══════════════════════════════════════════
