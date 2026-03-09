@@ -1108,10 +1108,11 @@ function extractBody(payload) {
   function walk(part) {
     if (!part) return;
     const mime = part.mimeType || '';
+    const charset = getPartCharset(part);
     if (mime === 'text/html' && part.body?.data) {
-      html = decodeBase64(part.body.data);
+      html = decodeBase64(part.body.data, charset);
     } else if (mime === 'text/plain' && part.body?.data && !html) {
-      text = decodeBase64(part.body.data);
+      text = decodeBase64(part.body.data, charset);
     }
     if (part.parts) part.parts.forEach(walk);
   }
@@ -1120,12 +1121,35 @@ function extractBody(payload) {
   return { html, text };
 }
 
-function decodeBase64(data) {
-  try {
-    return decodeURIComponent(escape(atob(data.replace(/-/g,'+').replace(/_/g,'/'))));
-  } catch {
-    return atob(data.replace(/-/g,'+').replace(/_/g,'/'));
+function getPartCharset(part) {
+  const header = (part.headers || []).find(h => h?.name?.toLowerCase() === 'content-type')?.value || '';
+  const m = header.match(/charset\s*=\s*"?([^";\s]+)/i);
+  return (m?.[1] || 'utf-8').toLowerCase();
+}
+
+function decodeBase64(data, charset = 'utf-8') {
+  const normalized = data.replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(normalized);
+  const bytes = Uint8Array.from(raw, c => c.charCodeAt(0));
+
+  const decodeWith = (enc) => {
+    try {
+      return new TextDecoder(enc, { fatal: false }).decode(bytes);
+    } catch {
+      return null;
+    }
+  };
+
+  const declaredDecoded = decodeWith(charset) || decodeWith('utf-8');
+  const utf8Decoded = decodeWith('utf-8');
+
+  if (declaredDecoded && utf8Decoded && charset !== 'utf-8') {
+    const looksMojibake = /(Ã.|Â.|â€™|â€“|â€œ|â€|�)/.test(declaredDecoded);
+    const utf8Cleaner = (utf8Decoded.match(/�/g)?.length || 0) <= (declaredDecoded.match(/�/g)?.length || 0);
+    if (looksMojibake && utf8Cleaner) return utf8Decoded;
   }
+
+  return declaredDecoded || raw;
 }
 
 function sanitizeHtml(html) {
