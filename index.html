@@ -1526,16 +1526,24 @@ function extractBody(payload) {
 
   function walk(part) {
     if (!part) return;
-    const mime = part.mimeType || '';
+    const mime = (part.mimeType || '').toLowerCase();
     if (mime === 'text/html' && part.body?.data) {
-      html = decodeBase64(part.body.data);
+      html = decodePartBody(part);
     } else if (mime === 'text/plain' && part.body?.data && !html) {
-      text = decodeBase64(part.body.data);
+      text = decodePartBody(part);
     }
     if (part.parts) part.parts.forEach(walk);
   }
 
   walk(payload);
+
+  // Messages mono-part sans "parts".
+  if (!html && !text && payload?.body?.data) {
+    const fallbackMime = (payload.mimeType || '').toLowerCase();
+    if (fallbackMime === 'text/html') html = decodePartBody(payload);
+    else text = decodePartBody(payload);
+  }
+
   return { html, text };
 }
 
@@ -1603,12 +1611,50 @@ function formatSize(bytes) {
   return (bytes / (1024 * 1024)).toFixed(1) + ' Mo';
 }
 
-function decodeBase64(data) {
-  try {
-    return decodeURIComponent(escape(atob(data.replace(/-/g,'+').replace(/_/g,'/'))));
-  } catch {
-    return atob(data.replace(/-/g,'+').replace(/_/g,'/'));
+function decodePartBody(part) {
+  const bytes = base64UrlToBytes(part.body?.data || '');
+  if (!bytes.length) return '';
+
+  const headerContentType = (part.headers || []).find(h => h.name?.toLowerCase() === 'content-type')?.value || '';
+  const charsetFromHeader = (headerContentType.match(/charset\s*=\s*['\"]?([^;\s'\"]+)/i) || [])[1] || '';
+  const charset = normalizeCharset(charsetFromHeader);
+
+  return decodeBytes(bytes, charset);
+}
+
+function base64UrlToBytes(data) {
+  const b64 = data.replace(/-/g, '+').replace(/_/g, '/');
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+function normalizeCharset(charset) {
+  if (!charset) return 'utf-8';
+  const value = charset.toLowerCase();
+  if (value === 'utf8') return 'utf-8';
+  if (value === 'latin1') return 'iso-8859-1';
+  if (value === 'cp1252') return 'windows-1252';
+  return value;
+}
+
+function decodeBytes(bytes, preferredCharset = 'utf-8') {
+  const candidates = [preferredCharset, 'utf-8', 'windows-1252', 'iso-8859-1'];
+  const tested = new Set();
+
+  for (const charset of candidates) {
+    if (!charset || tested.has(charset)) continue;
+    tested.add(charset);
+    try {
+      return new TextDecoder(charset).decode(bytes);
+    } catch (_) {}
   }
+
+  // Fallback minimal si TextDecoder ne supporte pas le charset.
+  let text = '';
+  for (let i = 0; i < bytes.length; i++) text += String.fromCharCode(bytes[i]);
+  return text;
 }
 
 function sanitizeHtml(html) {
