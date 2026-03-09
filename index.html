@@ -335,6 +335,12 @@
     gap: 2px;
   }
 
+  .email-item-icons {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
   .email-date {
     font-size: 10px;
     font-family: var(--mono);
@@ -346,6 +352,18 @@
     color: #d93025;
     line-height: 1;
   }
+
+  .email-trash-btn {
+    border: none;
+    background: transparent;
+    color: var(--text3);
+    font-size: 12px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0;
+  }
+
+  .email-trash-btn:hover { color: var(--danger); }
 
   .email-subject {
     font-size: 12px;
@@ -1402,7 +1420,10 @@ function buildEmailItem(msg) {
       <span>${escHtml(fromName.substring(0,30))}</span>
       <div class="email-date-wrap">
         <span class="email-date">${dateStr}</span>
-        ${hasAttachments(msg) ? '<span class="email-attach-icon">📎</span>' : ''}
+        <div class="email-item-icons">
+          ${hasAttachments(msg) ? '<span class="email-attach-icon" title="Pièce jointe">📎</span>' : ''}
+          <button class="email-trash-btn" title="Supprimer cet email" aria-label="Supprimer cet email" onclick="trashEmailFromList(event, '${msg.id}')">🗑</button>
+        </div>
       </div>
     </div>
     <div class="email-subject">${escHtml(subject)}</div>
@@ -1741,11 +1762,32 @@ async function deleteEmail() {
   }
 }
 
-function removeCurrentFromList() {
-  const el = document.querySelector(`.email-item[data-id="${currentMessageId}"]`);
+async function trashEmailFromList(event, id) {
+  event.stopPropagation();
+  if (!confirm('Supprimer cet email ?')) return;
+  try {
+    await gmailPost(`users/me/messages/${id}/trash`, {});
+    removeEmailFromList(id);
+    showToast('Email supprimé', 'success');
+  } catch(e) {
+    showToast('Erreur: ' + e.message, 'error');
+  }
+}
+
+function removeEmailFromList(id) {
+  const el = document.querySelector(`.email-item[data-id="${id}"]`);
   if (el) el.remove();
-  showEmptyState();
-  currentMessageId = null;
+  selectedIds.delete(id);
+  updateBulkBar();
+
+  if (currentMessageId === id) {
+    showEmptyState();
+    currentMessageId = null;
+  }
+}
+
+function removeCurrentFromList() {
+  removeEmailFromList(currentMessageId);
 }
 
 // ══════════════════════════════════════════
