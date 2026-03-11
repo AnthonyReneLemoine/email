@@ -900,13 +900,15 @@
     <div id="login-form" style="display:flex;flex-direction:column;align-items:center;gap:16px;width:100%;">
       <p class="login-sub">Client Gmail personnel<br>hébergé sur GitHub Pages</p>
       <div id="config-notice" style="display:none">
-        ⚠ Remplace <code>CLIENT_ID</code> dans le code source avant de te connecter.
+        ⚠ Configure <code>CLIENT_ID</code>, <code>APP_LOGIN</code> et <code>APP_PASSWORD</code> dans le code source.
       </div>
+      <input id="login-username" type="text" placeholder="Identifiant" style="width:100%;padding:10px;border:1px solid var(--border2);border-radius:var(--radius);font-size:14px;font-family:var(--sans);">
+      <input id="login-password" type="password" placeholder="Mot de passe" onkeydown="if(event.key==='Enter')signIn()" style="width:100%;padding:10px;border:1px solid var(--border2);border-radius:var(--radius);font-size:14px;font-family:var(--sans);">
       <button class="btn btn-primary" id="login-btn" onclick="signIn()" style="width:100%;padding:10px;font-size:14px;">
-        Se connecter avec Google
+        Se connecter
       </button>
       <p style="font-size:11px;color:var(--text3);font-family:var(--mono);text-align:center;">
-        OAuth 2.0 · Aucune donnée stockée côté serveur
+        Authentification par identifiant + mot de passe
       </p>
     </div>
 
@@ -1085,6 +1087,8 @@
 // ══════════════════════════════════════════
 const CLIENT_ID = '58430652200-bcn4ohfmg6at6ei5t4eofeppkv7o083j.apps.googleusercontent.com';
 const SCOPES = 'https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.send';
+const APP_LOGIN = 'admin'; // identifiant applicatif
+const APP_PASSWORD = 'changeme'; // mot de passe applicatif
 
 // ── FIREBASE CONFIG — remplace avec ta config Firebase ──
 const FIREBASE_CONFIG = null; // ex: { apiKey: "...", authDomain: "...", projectId: "...", ... }
@@ -1094,6 +1098,7 @@ const FIREBASE_CONFIG = null; // ex: { apiKey: "...", authDomain: "...", project
 // ══════════════════════════════════════════
 let tokenClient = null;
 let accessToken = null;
+let appAuthenticated = false;
 let currentFolder = 'INBOX';
 let currentMessageId = null;
 let currentMessage = null;
@@ -1167,6 +1172,7 @@ async function saveSigToFirebase(sig) {
 
 window.onload = () => {
   initFirebase();
+  appAuthenticated = sessionStorage.getItem('app_authenticated') === '1';
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') closeCompose();
     if (e.key === 'c' && !e.ctrlKey && !e.metaKey && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') openCompose();
@@ -1188,7 +1194,11 @@ function initGoogleAuth() {
     scope: SCOPES,
     callback: handleToken,
   });
-  tryRestoreSession();
+  if (appAuthenticated) {
+    tryRestoreSession();
+  } else {
+    showLoginForm();
+  }
 }
 
 function tryRestoreSession() {
@@ -1233,6 +1243,8 @@ function handleToken(resp) {
   if (resp.error) {
     localStorage.removeItem('gmail_token');
     localStorage.removeItem('gmail_token_expiry');
+    sessionStorage.removeItem('app_authenticated');
+    appAuthenticated = false;
     showLoginForm();
     if (resp.error !== 'user_logged_out' && resp.error !== 'access_denied') {
       showToast('Erreur d\'authentification: ' + resp.error, 'error');
@@ -1260,6 +1272,18 @@ async function showApp() {
 }
 
 function signIn() {
+  const username = (document.getElementById('login-username')?.value || '').trim();
+  const password = document.getElementById('login-password')?.value || '';
+  if (!username || !password) {
+    showToast('Renseigne ton identifiant et ton mot de passe', 'error');
+    return;
+  }
+  if (username !== APP_LOGIN || password !== APP_PASSWORD) {
+    showToast('Identifiant ou mot de passe invalide', 'error');
+    return;
+  }
+  appAuthenticated = true;
+  sessionStorage.setItem('app_authenticated', '1');
   if (!tokenClient) { showToast('Librairie Google non chargée', 'error'); return; }
   tokenClient.requestAccessToken({ prompt: 'consent' });
 }
@@ -1271,9 +1295,15 @@ function signOut() {
   accessToken = null;
   localStorage.removeItem('gmail_token');
   localStorage.removeItem('gmail_token_expiry');
+  sessionStorage.removeItem('app_authenticated');
+  appAuthenticated = false;
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
   knownInboxIds = null;
   document.getElementById('main-app').style.display = 'none';
+  const userInput = document.getElementById('login-username');
+  const passInput = document.getElementById('login-password');
+  if (userInput) userInput.value = '';
+  if (passInput) passInput.value = '';
   showLoginForm();
   document.getElementById('login-screen').style.display = 'flex';
 }
