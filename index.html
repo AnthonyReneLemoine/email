@@ -520,6 +520,13 @@
   .attachment-chip:hover { background: var(--surface3); color: var(--text); border-color: var(--accent); }
   .attachment-chip .att-icon { font-size: 13px; }
   .attachment-chip .att-size { color: var(--text3); font-size: 10px; }
+  .att-delete-btn {
+    margin-left: 2px; padding: 0 4px; border: none; background: transparent;
+    color: var(--text3); font-size: 14px; line-height: 1; cursor: pointer;
+    border-radius: 3px; opacity: 0; transition: opacity .15s, color .15s;
+  }
+  .attachment-chip:hover .att-delete-btn { opacity: 1; }
+  .att-delete-btn:hover { color: #d93025 !important; background: rgba(217,48,37,.1); }
 
   /* HTML email iframe */
   #msg-iframe {
@@ -1531,6 +1538,7 @@ function renderMessage(msg) {
         <span class="att-icon">${attIcon(att.mimeType)}</span>
         <span>${escHtml(att.filename)}</span>
         <span class="att-size">${formatSize(att.size)}</span>
+        <button class="att-delete-btn" title="Supprimer cette pièce jointe" onclick="event.stopPropagation();deleteAttachment('${msg.id}','${escHtml(att.filename)}')">×</button>
       </div>
     `).join('');
   } else {
@@ -1613,6 +1621,109 @@ async function downloadAttachment(messageId, attachmentId, filename, mimeType) {
   hideLoadingBar();
 }
 
+// Supprime une pièce jointe du message en reconstruisant le MIME sans elle.
+async function deleteAttachment(messageId, filename) {
+  if (!confirm(`Supprimer la pièce jointe "${filename}" de cet e-mail ?\nCette action est irréversible.`)) return;
+  showLoadingBar();
+  try {
+    const rawMsg = await gmailGet(`users/me/messages/${messageId}`, { format: 'raw' });
+    const mimeText = new TextDecoder('utf-8', { fatal: false }).decode(base64UrlToBytes(rawMsg.raw));
+    const newMime = removeMimeAttachment(mimeText, filename);
+    if (!newMime) throw new Error('Impossible de localiser la pièce jointe dans le message MIME');
+
+    // Re-encoder en base64url
+    const newBytes = new TextEncoder().encode(newMime);
+    let binary = '';
+    newBytes.forEach(b => binary += String.fromCharCode(b));
+    const newRaw = btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+
+    const labelIds = (rawMsg.labelIds || []).filter(l => l !== 'UNREAD');
+    const inserted = await gmailPost('users/me/messages/import', {
+      raw: newRaw,
+      labelIds,
+      threadId: rawMsg.threadId,
+      internalDateSource: 'dateHeader',
+    });
+
+    // Mettre l'original à la corbeille
+    await gmailPost(`users/me/messages/${messageId}/trash`, {});
+
+    showToast('Pièce jointe supprimée');
+
+    // Recharger l'affichage avec le nouveau message
+    currentMessageId = inserted.id;
+    const newMsg = await gmailGet(`users/me/messages/${inserted.id}`, { format: 'full' });
+    currentMessage = newMsg;
+    renderMessage(newMsg);
+
+    // Mettre à jour l'élément dans la liste si visible
+    const oldItem = document.querySelector(`.email-item[data-id="${messageId}"]`);
+    if (oldItem) oldItem.dataset.id = inserted.id;
+  } catch(e) {
+    showToast('Erreur suppression pièce jointe : ' + e.message, 'error');
+  }
+  hideLoadingBar();
+}
+
+// Parse le MIME brut et renvoie une version sans la pièce jointe ciblée.
+function removeMimeAttachment(mimeText, targetFilename) {
+  const text = mimeText.replace(/\r\n/g, '\n');
+  const sepIdx = text.indexOf('\n\n');
+  if (sepIdx === -1) return null;
+
+  const topHeaders = text.substring(0, sepIdx);
+  const topBody = text.substring(sepIdx + 2);
+
+  const boundaryMatch = topHeaders.match(/Content-Type:[^\n]*boundary\s*=\s*"?([^"\s;\n]+)"?/i);
+  if (!boundaryMatch) return null;
+  const boundary = boundaryMatch[1];
+  const delimiter = '--' + boundary;
+
+  const lines = topBody.split('\n');
+  const parts = [];   // tableau de { lines[] } ; null = marqueur de fin
+  let current = null;
+  let ended = false;
+
+  for (const line of lines) {
+    const trimmed = line.trimEnd();
+    if (trimmed === delimiter + '--') {
+      if (current !== null) parts.push(current);
+      ended = true;
+      break;
+    } else if (trimmed === delimiter) {
+      if (current !== null) parts.push(current);
+      current = [];
+    } else if (current !== null) {
+      current.push(line);
+    }
+  }
+  if (current !== null && !ended) parts.push(current);
+
+  let removed = false;
+  const filteredParts = parts.filter(partLines => {
+    const partText = partLines.join('\n');
+    const partSep = partText.indexOf('\n\n');
+    const partHeaders = partSep === -1 ? partText : partText.substring(0, partSep);
+    const m = partHeaders.match(/filename\*?=\s*(?:[a-zA-Z0-9-]*'[^']*')?["']?([^"'\r\n;]+)/i);
+    if (m) {
+      let fn = m[1].trim().replace(/^["']|["']$/g, '');
+      try { fn = decodeURIComponent(fn); } catch(_) {}
+      if (fn === targetFilename) { removed = true; return false; }
+    }
+    return true;
+  });
+
+  if (!removed) return null;
+
+  let result = topHeaders + '\n\n';
+  for (const partLines of filteredParts) {
+    result += delimiter + '\n' + partLines.join('\n') + '\n';
+  }
+  result += delimiter + '--\n';
+
+  return result.replace(/\n/g, '\r\n');
+}
+
 function attIcon(mime) {
   if (mime.startsWith('image/')) return '🖼';
   if (mime.startsWith('video/')) return '▶';
@@ -1661,6 +1772,15 @@ function normalizeCharset(charset) {
 }
 
 function decodeBytes(bytes, preferredCharset = 'utf-8') {
+  // Toujours tenter un décodage UTF-8 strict en premier : si les octets sont
+  // du vrai UTF-8, on l'utilise même si l'en-tête déclare iso-8859-1 (bug
+  // courant d'Outlook qui envoie de l'UTF-8 en déclarant latin-1).
+  if (preferredCharset !== 'utf-8') {
+    try {
+      return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    } catch (_) {}
+  }
+
   const candidates = [preferredCharset, 'utf-8', 'windows-1252', 'iso-8859-1'];
   const tested = new Set();
 
