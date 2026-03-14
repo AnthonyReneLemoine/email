@@ -1655,7 +1655,6 @@ async function deleteAttachment(messageId, filename, attachmentId) {
     const inserted = await gmailPost('users/me/messages/import', {
       raw: newRaw,
       labelIds,
-      threadId: rawMsg.threadId,
       internalDateSource: 'dateHeader',
     });
 
