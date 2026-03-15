@@ -1640,40 +1640,63 @@ async function deleteAttachment(messageId, filename, attachmentId) {
   if (!confirm(`Supprimer la pièce jointe "${filename}" de cet e-mail ?\nCette action est irréversible.`)) return;
   showLoadingBar();
   try {
+    // Récupère le message brut (MIME complet)
     const rawMsg = await gmailGet(`users/me/messages/${messageId}`, { format: 'raw' });
     const mimeText = new TextDecoder('utf-8', { fatal: false }).decode(base64UrlToBytes(rawMsg.raw));
-    const newMime = removeMimeAttachment(mimeText, filename);
-    if (!newMime) throw new Error('Impossible de localiser la pièce jointe dans le message MIME');
 
-    // Re-encoder en base64url
+    const newMime = removeMimeAttachment(mimeText, filename);
+    if (!newMime) throw new Error('Pièce jointe introuvable dans le MIME (le message est peut-être tronqué par Gmail)');
+
+    // Re-encoder le nouveau MIME en base64url par chunks (évite stack overflow)
+    const chunkSize = 3 * 1024;
     const newBytes = new TextEncoder().encode(newMime);
     let binary = '';
-    newBytes.forEach(b => binary += String.fromCharCode(b));
-    const newRaw = btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+    for (let i = 0; i < newBytes.length; i += chunkSize) {
+      binary += String.fromCharCode(...newBytes.subarray(i, i + chunkSize));
+    }
+    const newRaw = btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 
-    const labelIds = (rawMsg.labelIds || []).filter(l => l !== 'UNREAD');
-    const inserted = await gmailPost('users/me/messages/import', {
+    // Insérer le nouveau message via /insert (plus fiable que /import)
+    const inserted = await gmailPost('users/me/messages/insert?internalDateSource=dateHeader', {
       raw: newRaw,
-      labelIds,
-      internalDateSource: 'dateHeader',
     });
+
+    // Appliquer les labels de l'original (sauf UNREAD) sur le nouveau message
+    const labelsToAdd = (rawMsg.labelIds || []).filter(l => l !== 'UNREAD' && l !== 'SENT');
+    if (labelsToAdd.length > 0) {
+      await gmailPost(`users/me/messages/${inserted.id}/modify`, {
+        addLabelIds: labelsToAdd,
+        removeLabelIds: [],
+      });
+    }
 
     // Mettre l'original à la corbeille
     await gmailPost(`users/me/messages/${messageId}/trash`, {});
 
-    showToast('Pièce jointe supprimée');
+    // Vider le cache pour forcer un rechargement propre
+    delete messageCache[messageId];
+    delete messageCache[inserted.id];
 
-    // Recharger l'affichage avec le nouveau message
+    showToast('Pièce jointe supprimée ✓', 'success');
+
+    // Recharger et afficher le nouveau message
     currentMessageId = inserted.id;
     const newMsg = await gmailGet(`users/me/messages/${inserted.id}`, { format: 'full' });
+    messageCache[inserted.id] = newMsg;
     currentMessage = newMsg;
     renderMessage(newMsg);
 
     // Mettre à jour l'élément dans la liste si visible
     const oldItem = document.querySelector(`.email-item[data-id="${messageId}"]`);
-    if (oldItem) oldItem.dataset.id = inserted.id;
+    if (oldItem) {
+      oldItem.dataset.id = inserted.id;
+      // Mettre à jour les handlers inline
+      oldItem.onclick = () => openMessage(inserted.id, oldItem);
+      const trashBtn = oldItem.querySelector('.email-trash-btn');
+      if (trashBtn) trashBtn.setAttribute('onclick', `trashEmailFromList(event, '${inserted.id}')`);
+    }
   } catch(e) {
-    showToast('Erreur suppression pièce jointe : ' + e.message, 'error');
+    showToast('Erreur : ' + e.message, 'error');
   }
   hideLoadingBar();
 }
