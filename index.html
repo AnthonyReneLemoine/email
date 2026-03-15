@@ -927,7 +927,7 @@
   <!-- TOPBAR -->
   <div id="topbar">
     <span class="logo">▸ MAIL</span>
-    <span class="version">v8</span>
+    <span class="version">v9</span>
     <div id="search-wrap">
       <input id="search" type="text" placeholder="Rechercher dans les emails…" onkeydown="if(event.key==='Enter')searchEmails()">
     </div>
@@ -2164,11 +2164,40 @@ async function sendEmail() {
 
   if (!to) { showToast('Destinataire requis', 'error'); return; }
 
+  // Encode le sujet en RFC 2047 base64 UTF-8 (accents sûrs)
+  const subjectB64 = btoa(unescape(encodeURIComponent(subject)));
+
+  // Encode le corps en base64 UTF-8 via TextEncoder (accents garantis)
+  const chunkSize = 3 * 1024;
+  const bodyBytes = new TextEncoder().encode(body);
+  let bodyRaw = '';
+  for (let i = 0; i < bodyBytes.length; i += chunkSize) {
+    bodyRaw += String.fromCharCode(...bodyBytes.subarray(i, i + chunkSize));
+  }
+  const bodyB64 = btoa(bodyRaw);
+
   const ccLine = cc ? `\r\nCc: ${cc}` : '';
   const replyLine = replyData ? `\r\nIn-Reply-To: ${replyData.inReplyTo}` : '';
-  let raw = `To: ${to}${ccLine}\r\nSubject: =?UTF-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=${replyLine}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${body}`;
 
-  const encoded = btoa(unescape(encodeURIComponent(raw))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  const rawParts = [
+    `To: ${to}`,
+    cc ? `Cc: ${cc}` : null,
+    `Subject: =?UTF-8?B?${subjectB64}?=`,
+    replyData ? `In-Reply-To: ${replyData.inReplyTo}` : null,
+    `MIME-Version: 1.0`,
+    `Content-Type: text/plain; charset=UTF-8`,
+    `Content-Transfer-Encoding: base64`,
+    ``,
+    bodyB64,
+  ].filter(l => l !== null).join('\r\n');
+
+  // Encode le message MIME complet en base64url pour l'API Gmail
+  const mimeBytes = new TextEncoder().encode(rawParts);
+  let mimeRaw = '';
+  for (let i = 0; i < mimeBytes.length; i += chunkSize) {
+    mimeRaw += String.fromCharCode(...mimeBytes.subarray(i, i + chunkSize));
+  }
+  const encoded = btoa(mimeRaw).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
   const payload = { raw: encoded };
   if (replyData) payload.threadId = replyData.threadId;
