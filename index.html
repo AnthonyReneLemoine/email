@@ -2218,9 +2218,39 @@ async function searchEmails() {
 // ══════════════════════════════════════════
 //  NOTIFICATION SONORE
 // ══════════════════════════════════════════
-function playNotificationSound() {
+
+// Contexte audio partagé et persistant (évite la création répétée)
+let _audioCtx = null;
+
+function getAudioContext() {
+  if (!_audioCtx || _audioCtx.state === 'closed') {
+    _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return _audioCtx;
+}
+
+// Déverrouille l'AudioContext au premier geste utilisateur
+function unlockAudio() {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = getAudioContext();
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
+  } catch(e) {}
+}
+
+// Attacher le déverrouillage sur les premiers événements utilisateur
+['click', 'keydown', 'touchstart'].forEach(evt => {
+  document.addEventListener(evt, unlockAudio, { once: false, passive: true });
+});
+
+async function playNotificationSound() {
+  try {
+    const ctx = getAudioContext();
+    // Reprendre le contexte s'il est suspendu (page en arrière-plan, etc.)
+    if (ctx.state === 'suspended') {
+      await ctx.resume();
+    }
     const notes = [
       { freq: 523.25, start: 0,    dur: 0.12 },  // Do5
       { freq: 659.25, start: 0.13, dur: 0.12 },  // Mi5
@@ -2239,7 +2269,6 @@ function playNotificationSound() {
       osc.start(ctx.currentTime + start);
       osc.stop(ctx.currentTime + start + dur + 0.05);
     });
-    setTimeout(() => ctx.close(), 1000);
   } catch(e) {}
 }
 
