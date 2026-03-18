@@ -315,10 +315,10 @@ body {
 
 .email-date-wrap {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  flex-direction: row;
+  align-items: center;
   flex-shrink: 0;
-  gap: 2px;
+  gap: 4px;
 }
 
 .email-item-icons {
@@ -833,16 +833,11 @@ body {
 
 /* ── MULTI-SELECT ── */
 .email-cb-area {
-  position: absolute;
-  left: 0; top: 0; bottom: 0;
-  width: 30px;
   display: flex;
   align-items: center;
-  justify-content: center;
   opacity: 0;
   transition: opacity .15s;
   cursor: pointer;
-  z-index: 1;
 }
 .email-item:hover .email-cb-area,
 .email-item.selected .email-cb-area { opacity: 1; }
