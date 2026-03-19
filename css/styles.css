@@ -835,13 +835,19 @@ body {
 .email-cb-area {
   display: flex;
   align-items: center;
+  justify-content: center;
+  width: 18px;
+  min-width: 18px;
   opacity: 0;
-  transition: opacity .15s;
+  pointer-events: none;
   cursor: pointer;
 }
 .email-item:hover .email-cb-area,
-.email-item.selected .email-cb-area { opacity: 1; }
-.email-cb { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; }
+.email-item.selected .email-cb-area {
+  opacity: 1;
+  pointer-events: auto;
+}
+.email-cb { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; margin: 0; }
 .email-item.selected { background: rgba(74,222,128,0.07) !important; }
 .email-item.selected.unread::before { display: none; }
 
