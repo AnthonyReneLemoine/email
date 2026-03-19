@@ -44,9 +44,43 @@ export function decodeBytes(bytes, preferredCharset = 'utf-8') {
 
 // ── Décodage d'une partie de message Gmail ────────────────────────────────
 
+
+function decodeQuotedPrintableToBytes(input) {
+  const normalized = input
+    .replace(/=\r?\n/g, '')
+    .replace(/=([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+  const bytes = new Uint8Array(normalized.length);
+  for (let i = 0; i < normalized.length; i++) bytes[i] = normalized.charCodeAt(i) & 0xff;
+  return bytes;
+}
+
+function decodeTransferEncodedBody(part, bytes) {
+  const transferEncoding = ((part.headers || [])
+    .find(h => h.name?.toLowerCase() === 'content-transfer-encoding')?.value || '')
+    .trim()
+    .toLowerCase();
+
+  if (transferEncoding === 'quoted-printable') {
+    const ascii = String.fromCharCode(...bytes);
+    return decodeQuotedPrintableToBytes(ascii);
+  }
+
+  if (transferEncoding === 'base64') {
+    try {
+      const ascii = String.fromCharCode(...bytes).replace(/\s+/g, '');
+      return Uint8Array.from(atob(ascii), c => c.charCodeAt(0));
+    } catch (_) {
+      return bytes;
+    }
+  }
+
+  return bytes;
+}
+
 export function decodePartBody(part) {
-  const bytes = base64UrlToBytes(part.body?.data || '');
-  if (!bytes.length) return '';
+  const rawBytes = base64UrlToBytes(part.body?.data || '');
+  if (!rawBytes.length) return '';
+  const bytes = decodeTransferEncodedBody(part, rawBytes);
   const contentType = (part.headers || [])
     .find(h => h.name?.toLowerCase() === 'content-type')?.value || '';
   const charsetRaw = (contentType.match(/charset\s*=\s*['"']?([^;\s'"]+)/i) || [])[1] || '';

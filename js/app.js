@@ -8,6 +8,7 @@ import { openCompose, closeCompose, replyEmail, forwardEmail, sendEmail } from '
 import { toggleRead, archiveEmail, deleteEmail, trashEmailFromList, toggleSelect, clearSelection, deleteSelected } from './actions.js';
 import { openSigModal, closeSigModal, saveSig, clearSig } from './signature.js';
 import { showEmptyState, resizeMsgIframe } from './ui.js';
+import { primeNotificationAudio } from './notifications.js';
 
 // ── Exposition globale (pour les handlers inline du HTML) ─────────────────
 // On préfixe window.* pour rendre l'intention explicite.
@@ -40,6 +41,7 @@ window.resizeMsgIframe      = resizeMsgIframe;
 
 window.addEventListener('load', () => {
   initFirebase();
+  primeNotificationAudio();
 
   // Raccourcis clavier
   document.addEventListener('keydown', e => {

@@ -150,6 +150,119 @@ function hasAttachments(msg) {
 
 // ── Ouverture et rendu d'un message ───────────────────────────────────────
 
+
+function getPartHeader(part, name) {
+  return (part.headers || []).find(h => h.name?.toLowerCase() === name.toLowerCase())?.value || '';
+}
+
+async function partBodyToDataUrl(messageId, part) {
+  let data = part.body?.data || '';
+  if (!data && part.body?.attachmentId) {
+    const att = await gmailGet(`users/me/messages/${messageId}/attachments/${part.body.attachmentId}`);
+    data = att.data || '';
+  }
+  if (!data) return null;
+  const mimeType = part.mimeType || 'application/octet-stream';
+  const b64 = data.replace(/-/g, '+').replace(/_/g, '/');
+  return `data:${mimeType};base64,${b64}`;
+}
+
+async function buildInlineImageMap(messageId, payload) {
+  const inlineParts = [];
+
+  function walk(part) {
+    if (!part) return;
+    const cid = getPartHeader(part, 'Content-ID').trim().replace(/^<|>$/g, '');
+    const disposition = getPartHeader(part, 'Content-Disposition').toLowerCase();
+    const mime = (part.mimeType || '').toLowerCase();
+    const isInlineCandidate = mime.startsWith('image/') && (cid || disposition.includes('inline'));
+    if (isInlineCandidate) inlineParts.push({ cid, part });
+    if (part.parts) part.parts.forEach(walk);
+  }
+
+  walk(payload);
+
+  const entries = await Promise.all(inlineParts.map(async ({ cid, part }) => {
+    const url = await partBodyToDataUrl(messageId, part);
+    if (!url) return null;
+    const keys = new Set();
+    if (cid) {
+      keys.add(`cid:${cid}`);
+      keys.add(`cid:<${cid}>`);
+    }
+    const filename = part.filename?.trim();
+    if (filename) keys.add(filename);
+    return { keys: [...keys], url };
+  }));
+
+  const map = new Map();
+  entries.filter(Boolean).forEach(({ keys, url }) => keys.forEach(key => map.set(key, url)));
+  return map;
+}
+
+
+function buildMessageHtmlDoc(safeHtml) {
+  return `<!DOCTYPE html><html><head>
+<base target="_blank">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 20px 24px; font-family: Arial,sans-serif; font-size: 14px; line-height: 1.6; color: #202124; word-break: break-word; overflow-wrap: break-word; }
+  img { max-width: 100%; height: auto; }
+  a { color: #1a73e8; }
+  pre, code { white-space: pre-wrap; word-break: break-all; background: #f1f3f4; padding: 2px 4px; border-radius: 3px; font-size: 13px; }
+  table { max-width: 100%; border-collapse: collapse; }
+  blockquote { border-left: 3px solid #dadce0; margin: 8px 0; padding: 4px 12px; color: #5f6368; }
+</style></head><body>${safeHtml}</body></html>`;
+}
+
+function writeMessageIframe(iframe, safeHtml) {
+  const doc = iframe.contentDocument || iframe.contentWindow?.document;
+  const htmlDoc = buildMessageHtmlDoc(safeHtml);
+  if (doc) {
+    doc.open();
+    doc.write(htmlDoc);
+    doc.close();
+    return;
+  }
+  iframe.srcdoc = htmlDoc;
+}
+
+function normalizeEmailHtml(rawHtml, inlineImageMap) {
+  const doc = new DOMParser().parseFromString(rawHtml, 'text/html');
+
+  doc.querySelectorAll('img').forEach(img => {
+    const lazySrc = img.getAttribute('src')
+      || img.getAttribute('data-src')
+      || img.getAttribute('data-original')
+      || img.getAttribute('data-original-src')
+      || img.getAttribute('data-lazy-src');
+    if (lazySrc) img.setAttribute('src', lazySrc.trim());
+
+    const src = img.getAttribute('src') || '';
+    if (inlineImageMap.has(src)) img.setAttribute('src', inlineImageMap.get(src));
+    if (!img.getAttribute('alt')) img.setAttribute('alt', 'Image de l’email');
+    img.setAttribute('loading', 'eager');
+    img.setAttribute('referrerpolicy', 'no-referrer');
+    img.removeAttribute('srcset');
+    img.removeAttribute('data-srcset');
+  });
+
+  doc.querySelectorAll('[style]').forEach(el => {
+    const style = el.getAttribute('style') || '';
+    if (/background-image\s*:/i.test(style) && /cid:/i.test(style)) {
+      const nextStyle = style.replace(/url\(([^)]+)\)/gi, (match, rawUrl) => {
+        const cleanedUrl = rawUrl.trim().replace(/^['"]|['"]$/g, '');
+        return inlineImageMap.has(cleanedUrl) ? `url(${inlineImageMap.get(cleanedUrl)})` : match;
+      });
+      el.setAttribute('style', nextStyle);
+    }
+  });
+
+  return doc.body.innerHTML || rawHtml;
+}
+
 export async function openMessage(id, el) {
   document.querySelectorAll('.email-item').forEach(e => e.classList.remove('active'));
   el.classList.add('active');
@@ -159,7 +272,7 @@ export async function openMessage(id, el) {
   try {
     const msg = await gmailGet(`users/me/messages/${id}`, { format: 'full' });
     state.currentMessage = msg;
-    renderMessage(msg);
+    await renderMessage(msg);
 
     if ((msg.labelIds || []).includes('UNREAD')) {
       await gmailPost(`users/me/messages/${id}/modify`, { removeLabelIds: ['UNREAD'] });
@@ -174,7 +287,7 @@ export async function openMessage(id, el) {
   hideLoadingBar();
 }
 
-export function renderMessage(msg) {
+export async function renderMessage(msg) {
   const subject  = getHeader(msg, 'Subject') || '(Sans objet)';
   const from     = getHeader(msg, 'From');
   const to       = getHeader(msg, 'To');
@@ -195,30 +308,20 @@ export function renderMessage(msg) {
   const iframe    = document.getElementById('msg-iframe');
 
   if (html) {
+    const inlineImageMap = await buildInlineImageMap(msg.id, msg.payload);
+    const normalizedHtml = normalizeEmailHtml(html, inlineImageMap);
     bodyInner.style.display = 'none';
     iframe.style.display = 'block';
     iframe.style.height = '200px';
 
     // Sanitisation via DOMPurify + isolation dans un iframe sandboxé
-    const safeHtml = DOMPurify.sanitize(html, {
+    const safeHtml = DOMPurify.sanitize(normalizedHtml, {
       FORCE_BODY: true,
       ADD_TAGS: ['style'],
-      ADD_ATTR: ['target'],
+      ADD_ATTR: ['target', 'src', 'data-src', 'data-original', 'data-original-src', 'data-lazy-src', 'style', 'class', 'id', 'loading', 'referrerpolicy'],
     });
 
-    iframe.srcdoc = `<!DOCTYPE html><html><head>
-<base target="_blank">
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<style>
-  * { box-sizing: border-box; }
-  body { margin: 0; padding: 20px 24px; font-family: Arial,sans-serif; font-size: 14px; line-height: 1.6; color: #202124; word-break: break-word; overflow-wrap: break-word; }
-  img { max-width: 100%; height: auto; }
-  a { color: #1a73e8; }
-  pre, code { white-space: pre-wrap; word-break: break-all; background: #f1f3f4; padding: 2px 4px; border-radius: 3px; font-size: 13px; }
-  table { max-width: 100%; border-collapse: collapse; }
-  blockquote { border-left: 3px solid #dadce0; margin: 8px 0; padding: 4px 12px; color: #5f6368; }
-</style></head><body>${safeHtml}</body></html>`;
+    writeMessageIframe(iframe, safeHtml);
   } else {
     iframe.style.display = 'none';
     bodyInner.style.display = 'block';
@@ -325,7 +428,7 @@ export async function deleteAttachment(messageId, filename, attachmentId) {
     const newMsg = await gmailGet(`users/me/messages/${inserted.id}`, { format: 'full' });
     state.messageCache[inserted.id] = newMsg;
     state.currentMessage = newMsg;
-    renderMessage(newMsg);
+    await renderMessage(newMsg);
 
     const oldItem = document.querySelector(`.email-item[data-id="${messageId}"]`);
     if (oldItem) {

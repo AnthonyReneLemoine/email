@@ -6,6 +6,7 @@ import { loadFolder } from './mail.js';
 // ── Son de notification ────────────────────────────────────────────────────
 
 let _audioCtx = null;
+let _audioPrimed = false;
 
 function getAudioContext() {
   if (!_audioCtx || _audioCtx.state === 'closed') {
@@ -14,23 +15,29 @@ function getAudioContext() {
   return _audioCtx;
 }
 
-function unlockAudio() {
+async function unlockAudio() {
   try {
     const ctx = getAudioContext();
-    if (ctx.state === 'suspended') ctx.resume();
+    if (ctx.state === 'suspended') await ctx.resume();
+    if (ctx.state !== 'running') return;
+    _audioPrimed = ctx.state === 'running';
   } catch (e) {
     console.error('[notifications] unlockAudio:', e);
   }
 }
 
-['click', 'keydown', 'touchstart'].forEach(evt => {
-  document.addEventListener(evt, unlockAudio, { once: false, passive: true });
-});
+export function primeNotificationAudio() {
+  if (_audioPrimed) return;
+  ['click', 'keydown', 'touchstart', 'pointerdown'].forEach(evt => {
+    document.addEventListener(evt, unlockAudio, { once: false, passive: true });
+  });
+}
 
 async function playNotificationSound() {
   try {
     const ctx = getAudioContext();
     if (ctx.state === 'suspended') await ctx.resume();
+    if (ctx.state !== 'running') return;
     const notes = [
       { freq: 523.25, start: 0,    dur: 0.12 },
       { freq: 659.25, start: 0.13, dur: 0.12 },
