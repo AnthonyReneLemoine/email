@@ -108,12 +108,12 @@ export function buildEmailItem(msg) {
   el.className = 'email-item' + (isUnread ? ' unread' : '');
   el.dataset.id = msg.id;
   el.innerHTML = `
-    <label class="email-cb-area" onclick="event.stopPropagation()">
-      <input type="checkbox" class="email-cb" onchange="window.toggleSelect(event, '${msg.id}')">
-    </label>
     <div class="email-from">
       <span>${escHtml(fromName.substring(0, 30))}</span>
       <div class="email-date-wrap">
+        <label class="email-cb-area" onclick="event.stopPropagation()">
+          <input type="checkbox" class="email-cb" onchange="window.toggleSelect(event, '${msg.id}')">
+        </label>
         <span class="email-date">${dateStr}</span>
         <div class="email-item-icons">
           ${hasAtt ? '<span class="email-attach-icon" title="Pièce jointe">📎</span>' : ''}
