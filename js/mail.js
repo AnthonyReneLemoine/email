@@ -200,6 +200,35 @@ async function buildInlineImageMap(messageId, payload) {
   return map;
 }
 
+
+function buildMessageHtmlDoc(safeHtml) {
+  return `<!DOCTYPE html><html><head>
+<base target="_blank">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 20px 24px; font-family: Arial,sans-serif; font-size: 14px; line-height: 1.6; color: #202124; word-break: break-word; overflow-wrap: break-word; }
+  img { max-width: 100%; height: auto; }
+  a { color: #1a73e8; }
+  pre, code { white-space: pre-wrap; word-break: break-all; background: #f1f3f4; padding: 2px 4px; border-radius: 3px; font-size: 13px; }
+  table { max-width: 100%; border-collapse: collapse; }
+  blockquote { border-left: 3px solid #dadce0; margin: 8px 0; padding: 4px 12px; color: #5f6368; }
+</style></head><body>${safeHtml}</body></html>`;
+}
+
+function writeMessageIframe(iframe, safeHtml) {
+  const doc = iframe.contentDocument || iframe.contentWindow?.document;
+  const htmlDoc = buildMessageHtmlDoc(safeHtml);
+  if (doc) {
+    doc.open();
+    doc.write(htmlDoc);
+    doc.close();
+    return;
+  }
+  iframe.srcdoc = htmlDoc;
+}
+
 function normalizeEmailHtml(rawHtml, inlineImageMap) {
   const doc = new DOMParser().parseFromString(rawHtml, 'text/html');
 
@@ -215,6 +244,7 @@ function normalizeEmailHtml(rawHtml, inlineImageMap) {
     if (inlineImageMap.has(src)) img.setAttribute('src', inlineImageMap.get(src));
     if (!img.getAttribute('alt')) img.setAttribute('alt', 'Image de l’email');
     img.setAttribute('loading', 'eager');
+    img.setAttribute('referrerpolicy', 'no-referrer');
     img.removeAttribute('srcset');
     img.removeAttribute('data-srcset');
   });
@@ -288,22 +318,10 @@ export async function renderMessage(msg) {
     const safeHtml = DOMPurify.sanitize(normalizedHtml, {
       FORCE_BODY: true,
       ADD_TAGS: ['style'],
-      ADD_ATTR: ['target', 'src', 'data-src', 'data-original', 'data-original-src', 'data-lazy-src', 'style', 'class', 'id'],
+      ADD_ATTR: ['target', 'src', 'data-src', 'data-original', 'data-original-src', 'data-lazy-src', 'style', 'class', 'id', 'loading', 'referrerpolicy'],
     });
 
-    iframe.srcdoc = `<!DOCTYPE html><html><head>
-<base target="_blank">
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<style>
-  * { box-sizing: border-box; }
-  body { margin: 0; padding: 20px 24px; font-family: Arial,sans-serif; font-size: 14px; line-height: 1.6; color: #202124; word-break: break-word; overflow-wrap: break-word; }
-  img { max-width: 100%; height: auto; }
-  a { color: #1a73e8; }
-  pre, code { white-space: pre-wrap; word-break: break-all; background: #f1f3f4; padding: 2px 4px; border-radius: 3px; font-size: 13px; }
-  table { max-width: 100%; border-collapse: collapse; }
-  blockquote { border-left: 3px solid #dadce0; margin: 8px 0; padding: 4px 12px; color: #5f6368; }
-</style></head><body>${safeHtml}</body></html>`;
+    writeMessageIframe(iframe, safeHtml);
   } else {
     iframe.style.display = 'none';
     bodyInner.style.display = 'block';
