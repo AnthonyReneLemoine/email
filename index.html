@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mail</title>
+<title>Gmail</title>
 <link rel="icon" type="image/png" href="iconmonstr-email-10-240.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -26,7 +26,7 @@
 <!-- ══════════════ LOGIN SCREEN ══════════════ -->
 <div id="login-screen">
   <div class="login-box">
-    <div class="login-logo">▸ MAIL</div>
+    <div class="login-logo gmail-wordmark">Gmail</div>
 
     <!-- État : reconnexion silencieuse en cours -->
     <div id="login-loading" style="display:none;flex-direction:column;align-items:center;gap:12px;">
@@ -58,14 +58,13 @@
 
   <!-- TOPBAR -->
   <div id="topbar">
-    <span class="logo">▸ MAIL</span>
-    <span class="version">v10</span>
+    <span class="logo gmail-wordmark">Gmail</span>
     <div id="search-wrap">
       <input id="search" type="text" placeholder="Rechercher dans les emails…"
              onkeydown="if(event.key==='Enter') window.searchEmails()">
     </div>
     <div id="user-info">
-      <button class="btn btn-primary" onclick="window.openCompose()" title="Nouveau message (C)">✎ Composer</button>
+      <button class="btn btn-primary top-compose-btn" onclick="window.openCompose()" title="Nouveau message (C)">✎ Composer</button>
       <span id="user-email"></span>
       <button class="btn btn-ghost" onclick="window.openSigModal()" title="Signature">✍ Signature</button>
       <button class="btn btn-ghost" onclick="window.signOut()">Déconnexion</button>
@@ -134,7 +133,7 @@
     <div id="reading-pane">
       <div id="empty-state">
         <div class="big-icon">✉</div>
-        <p>Sélectionne un email à lire</p>
+        <p>Sélectionnez un email pour l’afficher</p>
       </div>
 
       <div id="msg-view">
