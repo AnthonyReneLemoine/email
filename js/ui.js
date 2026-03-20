@@ -1,15 +1,9 @@
 import { state } from './state.js';
 import { gmailGet } from './api.js';
 
-// ── Toast ──────────────────────────────────────────────────────────────────
-
+const SIDEBAR_PREF_KEY = 'gmail-sidebar-collapsed';
 let toastTimer;
 
-/**
- * Affiche un message de notification temporaire en bas de page.
- * @param {string} msg
- * @param {'success'|'error'|''} type
- */
 export function showToast(msg, type = '') {
   const el = document.getElementById('toast');
   el.textContent = msg;
@@ -17,8 +11,6 @@ export function showToast(msg, type = '') {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { el.className = ''; }, 3000);
 }
-
-// ── Barre de chargement ────────────────────────────────────────────────────
 
 export function showLoadingBar() {
   const bar = document.getElementById('loading-bar');
@@ -32,14 +24,10 @@ export function hideLoadingBar() {
   setTimeout(() => { bar.style.display = 'none'; bar.style.width = '0'; }, 300);
 }
 
-// ── Volet de lecture ───────────────────────────────────────────────────────
-
 export function showEmptyState() {
   document.getElementById('empty-state').style.display = 'flex';
   document.getElementById('msg-view').style.display = 'none';
 }
-
-// ── Sélection multiple ─────────────────────────────────────────────────────
 
 export function updateBulkBar() {
   const bar = document.getElementById('bulk-bar');
@@ -52,9 +40,6 @@ export function updateBulkBar() {
   }
 }
 
-/**
- * Supprime un email de la liste DOM et met à jour l'état.
- */
 export function removeEmailFromList(id) {
   const el = document.querySelector(`.email-item[data-id="${id}"]`);
   if (el) el.remove();
@@ -67,8 +52,6 @@ export function removeEmailFromList(id) {
   }
 }
 
-// ── Badge non lus ──────────────────────────────────────────────────────────
-
 export async function updateInboxBadge() {
   try {
     const data = await gmailGet('users/me/labels/INBOX');
@@ -79,8 +62,6 @@ export async function updateInboxBadge() {
     console.error('[ui] updateInboxBadge:', e);
   }
 }
-
-// ── Écran de login ─────────────────────────────────────────────────────────
 
 export function showLoginLoading(msg) {
   document.getElementById('login-form').style.display = 'none';
@@ -93,8 +74,6 @@ export function showLoginForm() {
   document.getElementById('login-loading').style.display = 'none';
   document.getElementById('login-form').style.display = 'flex';
 }
-
-// ── Auto-resize iframe email HTML ──────────────────────────────────────────
 
 export function resizeMsgIframe(iframe) {
   try {
@@ -114,4 +93,36 @@ export function resizeMsgIframe(iframe) {
   } catch (e) {
     console.error('[ui] resizeMsgIframe:', e);
   }
+}
+
+export function applySidebarState(collapsed) {
+  const app = document.getElementById('app');
+  const toggleBtn = document.getElementById('sidebar-toggle');
+  if (!app || !toggleBtn) return;
+
+  state.sidebarCollapsed = collapsed;
+  app.classList.toggle('sidebar-collapsed', collapsed);
+  toggleBtn.setAttribute('aria-expanded', String(!collapsed));
+  toggleBtn.setAttribute('title', collapsed ? 'Déployer le panneau de gauche' : 'Rétracter le panneau de gauche');
+  toggleBtn.innerHTML = collapsed ? '<span aria-hidden="true">☰</span>' : '<span aria-hidden="true">←</span>';
+
+  try {
+    window.localStorage.setItem(SIDEBAR_PREF_KEY, collapsed ? '1' : '0');
+  } catch (e) {
+    console.warn('[ui] Impossible de sauvegarder la préférence du panneau latéral:', e);
+  }
+}
+
+export function toggleSidebar() {
+  applySidebarState(!state.sidebarCollapsed);
+}
+
+export function initSidebarToggle() {
+  let collapsed = false;
+  try {
+    collapsed = window.localStorage.getItem(SIDEBAR_PREF_KEY) === '1';
+  } catch (e) {
+    console.warn('[ui] Impossible de lire la préférence du panneau latéral:', e);
+  }
+  applySidebarState(collapsed);
 }

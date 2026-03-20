@@ -20,6 +20,7 @@
   --sans: Arial, Helvetica, sans-serif;
   --radius: 16px;
   --sidebar-w: 256px;
+  --sidebar-collapsed-w: 88px;
   --list-w: 420px;
 }
 
@@ -57,6 +58,19 @@ body {
   font-size: 22px;
   line-height: 1;
   min-width: 88px;
+}
+
+.sidebar-toggle {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  font-size: 18px;
+  flex-shrink: 0;
 }
 
 #topbar .version { display: none; }
@@ -168,7 +182,9 @@ body {
   flex-direction: column;
   flex-shrink: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 8px 0;
+  transition: width .2s ease, padding .2s ease;
 }
 
 .compose-btn {
@@ -189,6 +205,12 @@ body {
   width: fit-content;
 }
 .compose-btn:hover { background: #b4ddff; box-shadow: 0 2px 8px rgba(60,64,67,.28); }
+
+.compose-btn span:last-child,
+.nav-item-label,
+.nav-label {
+  white-space: nowrap;
+}
 
 .nav-section {
   padding: 4px 0 10px;
@@ -234,6 +256,39 @@ body {
 }
 
 .nav-icon { font-size: 14px; width: 16px; text-align: center; }
+
+#app.sidebar-collapsed #sidebar {
+  width: var(--sidebar-collapsed-w);
+  padding-inline: 8px;
+}
+
+#app.sidebar-collapsed .compose-btn {
+  width: 56px;
+  min-width: 56px;
+  height: 56px;
+  margin-inline: auto;
+  padding: 0;
+  justify-content: center;
+  border-radius: 18px;
+}
+
+#app.sidebar-collapsed .compose-btn span:last-child,
+#app.sidebar-collapsed .nav-item-label,
+#app.sidebar-collapsed .nav-label,
+#app.sidebar-collapsed .nav-item .badge {
+  display: none;
+}
+
+#app.sidebar-collapsed .nav-item {
+  justify-content: center;
+  margin-right: 0;
+  padding-inline: 0;
+  border-radius: 18px;
+}
+
+#app.sidebar-collapsed .nav-icon {
+  width: auto;
+}
 
 /* ── EMAIL LIST ── */
 #email-list-panel {
@@ -885,3 +940,13 @@ body {
   flex-shrink: 0;
 }
 #bulk-count { font-size: 11px; font-family: var(--mono); color: var(--text2); flex: 1; }
+
+@media (max-width: 1100px) {
+  #app.sidebar-collapsed {
+    gap: 6px;
+  }
+
+  #app.sidebar-collapsed #email-list-panel {
+    width: min(420px, 42vw);
+  }
+}

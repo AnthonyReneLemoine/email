@@ -20,8 +20,9 @@ export async function loadUserLabels() {
     userLabels.forEach(label => {
       const item = document.createElement('div');
       item.className = 'nav-item';
+      item.title = label.name;
       item.dataset.folder = label.id;
-      item.innerHTML = `<span class="nav-icon" style="font-size:11px;">⊞</span> ${escHtml(label.name)}`;
+      item.innerHTML = `<span class="nav-icon" style="font-size:11px;">⊞</span><span class="nav-item-label">${escHtml(label.name)}</span>`;
 
       item.onclick = () => {
         FOLDER_NAMES[label.id] = label.name;

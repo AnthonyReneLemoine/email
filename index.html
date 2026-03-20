@@ -58,6 +58,7 @@
 
   <!-- TOPBAR -->
   <div id="topbar">
+    <button id="sidebar-toggle" class="icon-btn sidebar-toggle" onclick="window.toggleSidebar()" title="Rétracter le panneau de gauche" aria-label="Afficher ou masquer le panneau de gauche" aria-expanded="true"><span aria-hidden="true">←</span></button>
     <span class="logo gmail-wordmark">Gmail</span>
     <div id="search-wrap">
       <input id="search" type="text" placeholder="Rechercher dans les emails…"
@@ -77,29 +78,29 @@
     <!-- SIDEBAR -->
     <div id="sidebar">
       <button class="compose-btn" onclick="window.openCompose()">
-        <span>✎</span> Nouveau message
+        <span aria-hidden="true">✎</span><span>Nouveau message</span>
       </button>
 
       <div class="nav-section">
         <div class="nav-label">Boîtes</div>
-        <div class="nav-item active" onclick="window.loadFolder('INBOX', this)" data-folder="INBOX">
-          <span class="nav-icon">⌂</span> Boîte de réception
+        <div class="nav-item active" onclick="window.loadFolder('INBOX', this)" data-folder="INBOX" title="Boîte de réception">
+          <span class="nav-icon">⌂</span><span class="nav-item-label">Boîte de réception</span>
           <span class="badge" id="badge-inbox"></span>
         </div>
-        <div class="nav-item" onclick="window.loadFolder('SENT', this)" data-folder="SENT">
-          <span class="nav-icon">↗</span> Envoyés
+        <div class="nav-item" onclick="window.loadFolder('SENT', this)" data-folder="SENT" title="Envoyés">
+          <span class="nav-icon">↗</span><span class="nav-item-label">Envoyés</span>
         </div>
-        <div class="nav-item" onclick="window.loadFolder('STARRED', this)" data-folder="STARRED">
-          <span class="nav-icon">☆</span> Suivis
+        <div class="nav-item" onclick="window.loadFolder('STARRED', this)" data-folder="STARRED" title="Suivis">
+          <span class="nav-icon">☆</span><span class="nav-item-label">Suivis</span>
         </div>
-        <div class="nav-item" onclick="window.loadFolder('DRAFT', this)" data-folder="DRAFT">
-          <span class="nav-icon">✎</span> Brouillons
+        <div class="nav-item" onclick="window.loadFolder('DRAFT', this)" data-folder="DRAFT" title="Brouillons">
+          <span class="nav-icon">✎</span><span class="nav-item-label">Brouillons</span>
         </div>
-        <div class="nav-item" onclick="window.loadFolder('TRASH', this)" data-folder="TRASH">
-          <span class="nav-icon">⌫</span> Corbeille
+        <div class="nav-item" onclick="window.loadFolder('TRASH', this)" data-folder="TRASH" title="Corbeille">
+          <span class="nav-icon">⌫</span><span class="nav-item-label">Corbeille</span>
         </div>
-        <div class="nav-item" onclick="window.loadFolder('SPAM', this)" data-folder="SPAM">
-          <span class="nav-icon">⚐</span> Spam
+        <div class="nav-item" onclick="window.loadFolder('SPAM', this)" data-folder="SPAM" title="Spam">
+          <span class="nav-icon">⚐</span><span class="nav-item-label">Spam</span>
         </div>
       </div>
 
