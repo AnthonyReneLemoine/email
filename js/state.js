@@ -16,4 +16,5 @@ export const state = {
   pollTimer:        null,
   messageCache:     {},
   silentRefreshTimer: null,
+  sidebarCollapsed: false,
 };

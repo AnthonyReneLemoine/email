@@ -7,7 +7,7 @@ import { loadFolder, refreshCurrentFolder, searchEmails } from './mail.js';
 import { openCompose, closeCompose, replyEmail, forwardEmail, sendEmail } from './compose.js';
 import { toggleRead, archiveEmail, deleteEmail, trashEmailFromList, toggleSelect, clearSelection, deleteSelected } from './actions.js';
 import { openSigModal, closeSigModal, saveSig, clearSig } from './signature.js';
-import { showEmptyState, resizeMsgIframe } from './ui.js';
+import { showEmptyState, resizeMsgIframe, toggleSidebar, initSidebarToggle } from './ui.js';
 import { primeNotificationAudio } from './notifications.js';
 
 // ── Exposition globale (pour les handlers inline du HTML) ─────────────────
@@ -36,12 +36,15 @@ window.saveSig              = saveSig;
 window.clearSig             = clearSig;
 window.showEmptyState       = showEmptyState;
 window.resizeMsgIframe      = resizeMsgIframe;
+window.toggleSidebar        = toggleSidebar;
 
 // ── Initialisation ────────────────────────────────────────────────────────
 
 window.addEventListener('load', () => {
   initFirebase();
   primeNotificationAudio();
+
+  initSidebarToggle();
 
   // Raccourcis clavier
   document.addEventListener('keydown', e => {

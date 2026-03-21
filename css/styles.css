@@ -23,6 +23,7 @@
   --list-w: 420px;
 }
 
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
@@ -57,6 +58,19 @@ body {
   font-size: 22px;
   line-height: 1;
   min-width: 88px;
+}
+
+.sidebar-toggle {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  font-size: 18px;
+  flex-shrink: 0;
 }
 
 #topbar .version { display: none; }
@@ -158,6 +172,7 @@ body {
   overflow: hidden;
   padding: 0 8px 12px;
   gap: 8px;
+  transition: gap .2s ease;
 }
 
 /* ── SIDEBAR ── */
@@ -166,9 +181,12 @@ body {
   background: transparent;
   display: flex;
   flex-direction: column;
-  flex-shrink: 0;
+  flex: 0 0 var(--sidebar-w);
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 8px 0;
+  transform-origin: left center;
+  transition: flex-basis .22s ease, width .22s ease, padding .22s ease, opacity .16s ease, transform .22s ease, margin .22s ease;
 }
 
 .compose-btn {
@@ -189,6 +207,12 @@ body {
   width: fit-content;
 }
 .compose-btn:hover { background: #b4ddff; box-shadow: 0 2px 8px rgba(60,64,67,.28); }
+
+.compose-btn span:last-child,
+.nav-item-label,
+.nav-label {
+  white-space: nowrap;
+}
 
 .nav-section {
   padding: 4px 0 10px;
@@ -234,6 +258,25 @@ body {
 }
 
 .nav-icon { font-size: 14px; width: 16px; text-align: center; }
+
+#app.sidebar-collapsed {
+  gap: 0;
+}
+
+#app.sidebar-collapsed #sidebar {
+  width: 0;
+  flex-basis: 0;
+  margin-right: 0;
+  padding-inline: 0;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-18px);
+}
+
+#app.sidebar-collapsed .compose-btn,
+#app.sidebar-collapsed .nav-section {
+  opacity: 0;
+}
 
 /* ── EMAIL LIST ── */
 #email-list-panel {
@@ -885,3 +928,9 @@ body {
   flex-shrink: 0;
 }
 #bulk-count { font-size: 11px; font-family: var(--mono); color: var(--text2); flex: 1; }
+
+@media (max-width: 1100px) {
+  #app.sidebar-collapsed #email-list-panel {
+    width: min(420px, 42vw);
+  }
+}
