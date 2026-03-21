@@ -5,57 +5,25 @@ import { loadFolder } from './mail.js';
 
 // ── Son de notification ────────────────────────────────────────────────────
 
-let _audioCtx = null;
-let _audioPrimed = false;
-
-function getAudioContext() {
-  if (!_audioCtx || _audioCtx.state === 'closed') {
-    _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  }
-  return _audioCtx;
-}
-
-async function unlockAudio() {
-  try {
-    const ctx = getAudioContext();
-    if (ctx.state === 'suspended') await ctx.resume();
-    if (ctx.state !== 'running') return;
-    _audioPrimed = ctx.state === 'running';
-  } catch (e) {
-    console.error('[notifications] unlockAudio:', e);
-  }
-}
+const _notificationAudio = new Audio('new_mail.wav');
 
 export function primeNotificationAudio() {
-  if (_audioPrimed) return;
+  // Déverrouille la lecture audio sur le premier geste utilisateur
+  const unlock = () => {
+    _notificationAudio.play().then(() => {
+      _notificationAudio.pause();
+      _notificationAudio.currentTime = 0;
+    }).catch(() => {});
+  };
   ['click', 'keydown', 'touchstart', 'pointerdown'].forEach(evt => {
-    document.addEventListener(evt, unlockAudio, { once: false, passive: true });
+    document.addEventListener(evt, unlock, { once: true, passive: true });
   });
 }
 
 async function playNotificationSound() {
   try {
-    const ctx = getAudioContext();
-    if (ctx.state === 'suspended') await ctx.resume();
-    if (ctx.state !== 'running') return;
-    const notes = [
-      { freq: 523.25, start: 0,    dur: 0.12 },
-      { freq: 659.25, start: 0.13, dur: 0.12 },
-      { freq: 783.99, start: 0.26, dur: 0.22 },
-    ];
-    notes.forEach(({ freq, start, dur }) => {
-      const osc  = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0, ctx.currentTime + start);
-      gain.gain.linearRampToValueAtTime(0.18, ctx.currentTime + start + 0.01);
-      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + start + dur);
-      osc.start(ctx.currentTime + start);
-      osc.stop(ctx.currentTime + start + dur + 0.05);
-    });
+    _notificationAudio.currentTime = 0;
+    await _notificationAudio.play();
   } catch (e) {
     console.error('[notifications] playNotificationSound:', e);
   }
