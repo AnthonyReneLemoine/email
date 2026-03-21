@@ -58,7 +58,7 @@
 
   <!-- TOPBAR -->
   <div id="topbar">
-    <button id="sidebar-toggle" class="icon-btn sidebar-toggle" onclick="window.toggleSidebar()" title="Rétracter le panneau de gauche" aria-label="Afficher ou masquer le panneau de gauche" aria-expanded="true"><span aria-hidden="true">←</span></button>
+    <button id="sidebar-toggle" class="icon-btn sidebar-toggle" onclick="window.toggleSidebar()" title="Masquer le panneau de gauche" aria-label="Afficher ou masquer le panneau de gauche" aria-controls="sidebar" aria-expanded="true"><span aria-hidden="true">←</span></button>
     <span class="logo gmail-wordmark">Gmail</span>
     <div id="search-wrap">
       <input id="search" type="text" placeholder="Rechercher dans les emails…"
@@ -76,7 +76,7 @@
   <div id="app">
 
     <!-- SIDEBAR -->
-    <div id="sidebar">
+    <div id="sidebar" aria-hidden="false">
       <button class="compose-btn" onclick="window.openCompose()">
         <span aria-hidden="true">✎</span><span>Nouveau message</span>
       </button>

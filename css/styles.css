@@ -20,9 +20,9 @@
   --sans: Arial, Helvetica, sans-serif;
   --radius: 16px;
   --sidebar-w: 256px;
-  --sidebar-collapsed-w: 88px;
   --list-w: 420px;
 }
+
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -172,6 +172,7 @@ body {
   overflow: hidden;
   padding: 0 8px 12px;
   gap: 8px;
+  transition: gap .2s ease;
 }
 
 /* ── SIDEBAR ── */
@@ -180,11 +181,12 @@ body {
   background: transparent;
   display: flex;
   flex-direction: column;
-  flex-shrink: 0;
+  flex: 0 0 var(--sidebar-w);
   overflow-y: auto;
   overflow-x: hidden;
   padding: 8px 0;
-  transition: width .2s ease, padding .2s ease;
+  transform-origin: left center;
+  transition: flex-basis .22s ease, width .22s ease, padding .22s ease, opacity .16s ease, transform .22s ease, margin .22s ease;
 }
 
 .compose-btn {
@@ -257,37 +259,23 @@ body {
 
 .nav-icon { font-size: 14px; width: 16px; text-align: center; }
 
+#app.sidebar-collapsed {
+  gap: 0;
+}
+
 #app.sidebar-collapsed #sidebar {
-  width: var(--sidebar-collapsed-w);
-  padding-inline: 8px;
-}
-
-#app.sidebar-collapsed .compose-btn {
-  width: 56px;
-  min-width: 56px;
-  height: 56px;
-  margin-inline: auto;
-  padding: 0;
-  justify-content: center;
-  border-radius: 18px;
-}
-
-#app.sidebar-collapsed .compose-btn span:last-child,
-#app.sidebar-collapsed .nav-item-label,
-#app.sidebar-collapsed .nav-label,
-#app.sidebar-collapsed .nav-item .badge {
-  display: none;
-}
-
-#app.sidebar-collapsed .nav-item {
-  justify-content: center;
+  width: 0;
+  flex-basis: 0;
   margin-right: 0;
   padding-inline: 0;
-  border-radius: 18px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-18px);
 }
 
-#app.sidebar-collapsed .nav-icon {
-  width: auto;
+#app.sidebar-collapsed .compose-btn,
+#app.sidebar-collapsed .nav-section {
+  opacity: 0;
 }
 
 /* ── EMAIL LIST ── */
@@ -942,10 +930,6 @@ body {
 #bulk-count { font-size: 11px; font-family: var(--mono); color: var(--text2); flex: 1; }
 
 @media (max-width: 1100px) {
-  #app.sidebar-collapsed {
-    gap: 6px;
-  }
-
   #app.sidebar-collapsed #email-list-panel {
     width: min(420px, 42vw);
   }

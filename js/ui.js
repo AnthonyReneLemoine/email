@@ -98,13 +98,16 @@ export function resizeMsgIframe(iframe) {
 export function applySidebarState(collapsed) {
   const app = document.getElementById('app');
   const toggleBtn = document.getElementById('sidebar-toggle');
-  if (!app || !toggleBtn) return;
+  const sidebar = document.getElementById('sidebar');
+  if (!app || !toggleBtn || !sidebar) return;
 
   state.sidebarCollapsed = collapsed;
   app.classList.toggle('sidebar-collapsed', collapsed);
+  sidebar.setAttribute('aria-hidden', String(collapsed));
   toggleBtn.setAttribute('aria-expanded', String(!collapsed));
-  toggleBtn.setAttribute('title', collapsed ? 'Déployer le panneau de gauche' : 'Rétracter le panneau de gauche');
-  toggleBtn.innerHTML = collapsed ? '<span aria-hidden="true">☰</span>' : '<span aria-hidden="true">←</span>';
+  toggleBtn.setAttribute('title', collapsed ? 'Afficher le panneau de gauche' : 'Masquer le panneau de gauche');
+  toggleBtn.setAttribute('aria-label', collapsed ? 'Afficher le panneau de gauche' : 'Masquer le panneau de gauche');
+  toggleBtn.textContent = collapsed ? '☰' : '←';
 
   try {
     window.localStorage.setItem(SIDEBAR_PREF_KEY, collapsed ? '1' : '0');
