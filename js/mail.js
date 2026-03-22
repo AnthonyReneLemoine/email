@@ -218,7 +218,13 @@ function buildMessageHtmlDoc(safeHtml) {
 }
 
 function writeMessageIframe(iframe, safeHtml) {
-  iframe.srcdoc = buildMessageHtmlDoc(safeHtml);
+  if (iframe._blobUrl) {
+    URL.revokeObjectURL(iframe._blobUrl);
+    iframe._blobUrl = null;
+  }
+  const blob = new Blob([buildMessageHtmlDoc(safeHtml)], { type: 'text/html; charset=utf-8' });
+  iframe._blobUrl = URL.createObjectURL(blob);
+  iframe.src = iframe._blobUrl;
 }
 
 function normalizeEmailHtml(rawHtml, inlineImageMap) {
@@ -236,6 +242,7 @@ function normalizeEmailHtml(rawHtml, inlineImageMap) {
     if (inlineImageMap.has(src)) img.setAttribute('src', inlineImageMap.get(src));
     if (!img.getAttribute('alt')) img.setAttribute('alt', 'Image de l\'email');
     img.setAttribute('loading', 'eager');
+    img.setAttribute('referrerpolicy', 'no-referrer');
     img.removeAttribute('srcset');
     img.removeAttribute('data-srcset');
   });
