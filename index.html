@@ -157,6 +157,7 @@
             <button class="btn btn-ghost" id="btn-toggle-read" onclick="window.toggleRead()">Marquer non lu</button>
             <button class="btn btn-ghost" onclick="window.archiveEmail()">✓ Archiver</button>
             <button class="btn btn-danger" onclick="window.deleteEmail()">⌫ Supprimer</button>
+            <button class="btn btn-ghost" onclick="window.viewSource()" title="Voir le code source brut de l'email">&lt;/&gt; Source</button>
           </div>
         </div>
         <div id="msg-body">
@@ -170,6 +171,18 @@
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- ══════════════ SOURCE MODAL ══════════════ -->
+<div id="source-overlay" onclick="if(event.target===this) window.closeSource()">
+  <div id="source-modal">
+    <div class="compose-header">
+      <span class="compose-header-icon">&lt;/&gt;</span>
+      <span class="compose-header-title">Code source de l'email</span>
+      <button class="compose-close" onclick="window.closeSource()" title="Fermer">✕</button>
+    </div>
+    <pre id="source-content"></pre>
   </div>
 </div>
 

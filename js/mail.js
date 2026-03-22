@@ -446,6 +446,29 @@ export async function deleteAttachment(messageId, filename, attachmentId) {
   hideLoadingBar();
 }
 
+// ── Code source de l'email ─────────────────────────────────────────────────
+
+export async function viewSource() {
+  const id = state.currentMessageId;
+  if (!id) return;
+  showLoadingBar();
+  try {
+    const rawMsg = await gmailGet(`users/me/messages/${id}`, { format: 'raw' });
+    const mimeText = new TextDecoder('utf-8', { fatal: false })
+      .decode(base64UrlToBytes(rawMsg.raw));
+    document.getElementById('source-content').textContent = mimeText;
+    document.getElementById('source-overlay').classList.add('open');
+  } catch (e) {
+    console.error('[mail] viewSource:', e);
+    showToast('Erreur chargement source : ' + e.message, 'error');
+  }
+  hideLoadingBar();
+}
+
+export function closeSource() {
+  document.getElementById('source-overlay').classList.remove('open');
+}
+
 // ── Recherche ──────────────────────────────────────────────────────────────
 
 export async function searchEmails() {

@@ -3,7 +3,7 @@
 
 import { CLIENT_ID } from './config.js';
 import { initFirebase, initGoogleAuth, signIn, signOut } from './auth.js';
-import { loadFolder, refreshCurrentFolder, searchEmails } from './mail.js';
+import { loadFolder, refreshCurrentFolder, searchEmails, viewSource, closeSource } from './mail.js';
 import { openCompose, closeCompose, replyEmail, forwardEmail, sendEmail } from './compose.js';
 import { toggleRead, archiveEmail, deleteEmail, trashEmailFromList, toggleSelect, clearSelection, deleteSelected } from './actions.js';
 import { openSigModal, closeSigModal, saveSig, clearSig } from './signature.js';
@@ -37,6 +37,8 @@ window.clearSig             = clearSig;
 window.showEmptyState       = showEmptyState;
 window.resizeMsgIframe      = resizeMsgIframe;
 window.toggleSidebar        = toggleSidebar;
+window.viewSource           = viewSource;
+window.closeSource          = closeSource;
 
 // ── Initialisation ────────────────────────────────────────────────────────
 
@@ -48,7 +50,7 @@ window.addEventListener('load', () => {
 
   // Raccourcis clavier
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') closeCompose();
+    if (e.key === 'Escape') { closeCompose(); closeSource(); }
     if (
       e.key === 'c' && !e.ctrlKey && !e.metaKey &&
       document.activeElement.tagName !== 'INPUT' &&
