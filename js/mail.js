@@ -218,49 +218,44 @@ function buildMessageHtmlDoc(safeHtml) {
 }
 
 function writeMessageIframe(iframe, safeHtml) {
-  const doc = iframe.contentDocument || iframe.contentWindow?.document;
-  const htmlDoc = buildMessageHtmlDoc(safeHtml);
-  if (doc) {
-    doc.open();
-    doc.write(htmlDoc);
-    doc.close();
-    return;
-  }
-  iframe.srcdoc = htmlDoc;
+  iframe.srcdoc = buildMessageHtmlDoc(safeHtml);
 }
 
 function normalizeEmailHtml(rawHtml, inlineImageMap) {
-  const doc = new DOMParser().parseFromString(rawHtml, 'text/html');
+  const doc = new DOMParser().parseFromString(rawHtml, ‘text/html’);
 
-  doc.querySelectorAll('img').forEach(img => {
-    const lazySrc = img.getAttribute('src')
-      || img.getAttribute('data-src')
-      || img.getAttribute('data-original')
-      || img.getAttribute('data-original-src')
-      || img.getAttribute('data-lazy-src');
-    if (lazySrc) img.setAttribute('src', lazySrc.trim());
+  doc.querySelectorAll(‘img’).forEach(img => {
+    const lazySrc = img.getAttribute(‘src’)
+      || img.getAttribute(‘data-src’)
+      || img.getAttribute(‘data-original’)
+      || img.getAttribute(‘data-original-src’)
+      || img.getAttribute(‘data-lazy-src’);
+    if (lazySrc) img.setAttribute(‘src’, lazySrc.trim());
 
-    const src = img.getAttribute('src') || '';
-    if (inlineImageMap.has(src)) img.setAttribute('src', inlineImageMap.get(src));
-    if (!img.getAttribute('alt')) img.setAttribute('alt', 'Image de l’email');
-    img.setAttribute('loading', 'eager');
-    img.setAttribute('referrerpolicy', 'no-referrer');
-    img.removeAttribute('srcset');
-    img.removeAttribute('data-srcset');
+    const src = img.getAttribute(‘src’) || ‘’;
+    if (inlineImageMap.has(src)) img.setAttribute(‘src’, inlineImageMap.get(src));
+    if (!img.getAttribute(‘alt’)) img.setAttribute(‘alt’, ‘Image de l\’email’);
+    img.setAttribute(‘loading’, ‘eager’);
+    img.removeAttribute(‘srcset’);
+    img.removeAttribute(‘data-srcset’);
   });
 
-  doc.querySelectorAll('[style]').forEach(el => {
-    const style = el.getAttribute('style') || '';
+  doc.querySelectorAll(‘[style]’).forEach(el => {
+    const style = el.getAttribute(‘style’) || ‘’;
     if (/background-image\s*:/i.test(style) && /cid:/i.test(style)) {
       const nextStyle = style.replace(/url\(([^)]+)\)/gi, (match, rawUrl) => {
-        const cleanedUrl = rawUrl.trim().replace(/^['"]|['"]$/g, '');
+        const cleanedUrl = rawUrl.trim().replace(/^[‘"]|[‘"]$/g, ‘’);
         return inlineImageMap.has(cleanedUrl) ? `url(${inlineImageMap.get(cleanedUrl)})` : match;
       });
-      el.setAttribute('style', nextStyle);
+      el.setAttribute(‘style’, nextStyle);
     }
   });
 
-  return doc.body.innerHTML || rawHtml;
+  // Préserve les styles CSS définis dans le <head> de l’email
+  const headStyles = [...doc.head.querySelectorAll(‘style’)]
+    .map(s => s.outerHTML).join(‘’);
+
+  return headStyles + (doc.body.innerHTML || rawHtml);
 }
 
 export async function openMessage(id, el) {
