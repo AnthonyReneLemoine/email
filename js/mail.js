@@ -242,7 +242,6 @@ function normalizeEmailHtml(rawHtml, inlineImageMap) {
     if (inlineImageMap.has(src)) img.setAttribute('src', inlineImageMap.get(src));
     if (!img.getAttribute('alt')) img.setAttribute('alt', 'Image de l\'email');
     img.setAttribute('loading', 'eager');
-    img.setAttribute('referrerpolicy', 'no-referrer');
     img.removeAttribute('srcset');
     img.removeAttribute('data-srcset');
   });
