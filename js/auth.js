@@ -64,6 +64,7 @@ export function tryRestoreSession() {
   const expiry = parseInt(sessionStorage.getItem('gmail_token_expiry') || '0');
   if (token && Date.now() < expiry - 60_000) {
     state.accessToken = token;
+    scheduleTokenRefresh((expiry - Date.now()) / 1000);
     showLoginLoading('Restauration de la session…');
     fetchUserInfo().then(showApp).catch(() => trySilentRefresh());
   } else if (token) {
@@ -76,6 +77,18 @@ export function trySilentRefresh() {
   showLoginLoading('Reconnexion…');
   state.silentRefreshTimer = setTimeout(() => showLoginForm(), 8000);
   state.tokenClient.requestAccessToken({ prompt: '' });
+}
+
+/**
+ * Planifie un rafraîchissement silencieux du token 5 minutes avant son expiration,
+ * afin que la session dure jusqu'à la fermeture de l'onglet.
+ */
+function scheduleTokenRefresh(expiresInSeconds) {
+  if (state.tokenRefreshTimer) clearTimeout(state.tokenRefreshTimer);
+  const delay = Math.max(0, expiresInSeconds - 300) * 1000;
+  state.tokenRefreshTimer = setTimeout(() => {
+    state.tokenClient.requestAccessToken({ prompt: '' });
+  }, delay);
 }
 
 /**
@@ -93,9 +106,11 @@ export function handleToken(resp) {
     return;
   }
   state.accessToken = resp.access_token;
-  const expiry = Date.now() + (resp.expires_in || 3600) * 1000;
+  const expiresIn = resp.expires_in || 3600;
+  const expiry = Date.now() + expiresIn * 1000;
   sessionStorage.setItem('gmail_token', state.accessToken);
   sessionStorage.setItem('gmail_token_expiry', String(expiry));
+  scheduleTokenRefresh(expiresIn);
   fetchUserInfo().then(showApp).catch(() => showLoginForm());
 }
 
@@ -148,6 +163,7 @@ export function signOut() {
   sessionStorage.removeItem('gmail_token');
   sessionStorage.removeItem('gmail_token_expiry');
   if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; }
+  if (state.tokenRefreshTimer) { clearTimeout(state.tokenRefreshTimer); state.tokenRefreshTimer = null; }
   state.knownInboxIds = null;
   document.getElementById('main-app').style.display = 'none';
   showLoginForm();
