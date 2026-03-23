@@ -218,15 +218,13 @@ function buildMessageHtmlDoc(safeHtml) {
 }
 
 function writeMessageIframe(iframe, safeHtml) {
-  const doc = iframe.contentDocument || iframe.contentWindow?.document;
-  const htmlDoc = buildMessageHtmlDoc(safeHtml);
-  if (doc) {
-    doc.open();
-    doc.write(htmlDoc);
-    doc.close();
-    return;
+  if (iframe._blobUrl) {
+    URL.revokeObjectURL(iframe._blobUrl);
+    iframe._blobUrl = null;
   }
-  iframe.srcdoc = htmlDoc;
+  const blob = new Blob([buildMessageHtmlDoc(safeHtml)], { type: 'text/html; charset=utf-8' });
+  iframe._blobUrl = URL.createObjectURL(blob);
+  iframe.src = iframe._blobUrl;
 }
 
 function normalizeEmailHtml(rawHtml, inlineImageMap) {
@@ -242,9 +240,8 @@ function normalizeEmailHtml(rawHtml, inlineImageMap) {
 
     const src = img.getAttribute('src') || '';
     if (inlineImageMap.has(src)) img.setAttribute('src', inlineImageMap.get(src));
-    if (!img.getAttribute('alt')) img.setAttribute('alt', 'Image de l’email');
+    if (!img.getAttribute('alt')) img.setAttribute('alt', 'Image de l\'email');
     img.setAttribute('loading', 'eager');
-    img.setAttribute('referrerpolicy', 'no-referrer');
     img.removeAttribute('srcset');
     img.removeAttribute('data-srcset');
   });
@@ -260,7 +257,11 @@ function normalizeEmailHtml(rawHtml, inlineImageMap) {
     }
   });
 
-  return doc.body.innerHTML || rawHtml;
+  // Préserve les styles CSS définis dans le <head> de l'email
+  const headStyles = [...doc.head.querySelectorAll('style')]
+    .map(s => s.outerHTML).join('');
+
+  return headStyles + (doc.body.innerHTML || rawHtml);
 }
 
 export async function openMessage(id, el) {
@@ -444,6 +445,29 @@ export async function deleteAttachment(messageId, filename, attachmentId) {
     showToast('Erreur : ' + e.message, 'error');
   }
   hideLoadingBar();
+}
+
+// ── Code source de l'email ─────────────────────────────────────────────────
+
+export async function viewSource() {
+  const id = state.currentMessageId;
+  if (!id) return;
+  showLoadingBar();
+  try {
+    const rawMsg = await gmailGet(`users/me/messages/${id}`, { format: 'raw' });
+    const mimeText = new TextDecoder('utf-8', { fatal: false })
+      .decode(base64UrlToBytes(rawMsg.raw));
+    document.getElementById('source-content').textContent = mimeText;
+    document.getElementById('source-overlay').classList.add('open');
+  } catch (e) {
+    console.error('[mail] viewSource:', e);
+    showToast('Erreur chargement source : ' + e.message, 'error');
+  }
+  hideLoadingBar();
+}
+
+export function closeSource() {
+  document.getElementById('source-overlay').classList.remove('open');
 }
 
 // ── Recherche ──────────────────────────────────────────────────────────────
